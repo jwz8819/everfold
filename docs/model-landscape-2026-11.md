@@ -1,12 +1,21 @@
 # Interactive world models an independent researcher can test (checked 2026-11-01)
 
+**Correction, same day:** the Odyssey developer portal (developer.odyssey.ml/login) now says Odyssey-2 Max "is now
+being rolled out to existing API users" and sends everyone else to odyssey.ml/contact "to request priority access".
+New accounts are not self-serve, even though the API docs still say "Sign up and receive an API key".
+Self-serve options checked the same day: fal.ai hosts ABot-World-0 as a realtime session (keyboard + camera +
+prompt, 1280×704 at 16 fps over WebRTC, sign in to create a key, prepaid credits, price not shown); Decart's
+platform offers Lucy Restyle 2 (realtime restyling of a live video stream with a text prompt). General Intuition's
+MIRA (Rocket League 2v2, four synchronised views, 5B latent diffusion) has a public browser demo and Apache-2.0
+code on GitHub but no released weights; API access is partner-only with a waitlist at partners.generalintuition.com.
+
 Compiled from official pages, GitHub, Hugging Face and arXiv. Items marked UNVERIFIED came from secondary sources.
 
 ## Models
 
 | Model | Org | Type | Access | Controls | Output | Session | Multiplayer | Cost / hardware | License |
 |---|---|---|---|---|---|---|---|---|---|
-| Odyssey-2 Pro | Odyssey | frame-by-frame video | self-serve API, JS + Python SDKs | text prompt, optional start image, mid-stream text. No keyboard, mouse or camera input | 1280×704, 22 fps, frame every 50 ms | 150 s per stream, 60 min per connection | broadcast only (one shared stream) | price not published; free tier 5 concurrent streams | Odyssey API licence |
+| Odyssey-2 Pro | Odyssey | frame-by-frame video | API for existing users; new users request access (see correction) | text prompt, optional start image, mid-stream text. No keyboard, mouse or camera input | 1280×704, 22 fps, frame every 50 ms | 150 s per stream, 60 min per connection | broadcast only (one shared stream) | price not published; free tier 5 concurrent streams | Odyssey API licence |
 | Odyssey-3 / 3 Pro | Odyssey | frame-by-frame | web research preview; developers asked to get in touch | movement, camera, text events | 480p / 720p | n/p | no | n/p | proprietary |
 | Agora-1 | Odyssey | multiplayer shared state | web preview | GoldenEye-style actions | n/p | n/p | 4 players | n/a | proprietary |
 | Agora-2 | Odyssey | multiplayer: learned simulation + per-player renderer + authoritative server | web preview + tech report, no API or weights | movement, attack | 640×480; latency not measured in report | n/p | 4 humans + agents | 4× RTX PRO 4500 per 4-player session | proprietary |
