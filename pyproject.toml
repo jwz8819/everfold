@@ -1,0 +1,28 @@
+[project]
+name = "project-hyrule"
+version = "0.1.0"
+description = "Testbed for generative world models in real-time multiplayer open worlds"
+requires-python = ">=3.11"
+dependencies = ["aiohttp>=3.9", "pillow>=10"]
+
+[project.optional-dependencies]
+claude = ["anthropic>=1.0"]
+odyssey = ["odyssey @ git+https://github.com/odysseyml/odyssey-python.git", "numpy"]
+dev = ["pytest>=8", "pytest-aiohttp>=1.0"]
+
+[project.scripts]
+hyrule = "hyrule.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["hyrule"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

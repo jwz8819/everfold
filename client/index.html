@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Everfold · Project Hyrule testbed</title>
+<link rel="stylesheet" href="/client/style.css">
+</head>
+<body>
+<div id="join" class="overlay">
+  <form id="join-form">
+    <h1>Everfold</h1>
+    <p>A shared world that writes itself as you walk. Open this page in a second window to play together.</p>
+    <label for="join-name">Your name</label>
+    <input id="join-name" maxlength="20" autocomplete="off" placeholder="e.g. Mara" required>
+    <button type="submit">Enter the world</button>
+  </form>
+</div>
+
+<main id="app" hidden>
+  <section class="stage">
+    <canvas id="map" aria-label="World map"></canvas>
+    <div id="hint" class="hint">WASD to walk · E gather · F campfire · T talk · G give · Enter chat</div>
+    <div id="dialog" class="dialog" hidden>
+      <div class="dialog-who" id="dialog-who"></div>
+      <div class="dialog-text" id="dialog-text"></div>
+      <form id="talk-form" class="talk-form">
+        <label for="talk-input" class="sr">Say something</label>
+        <input id="talk-input" maxlength="200" autocomplete="off" placeholder="Say something, or press Enter to just greet">
+      </form>
+    </div>
+    <div id="offer" class="offer" hidden>
+      <div class="offer-title" id="offer-title"></div>
+      <div class="offer-summary" id="offer-summary"></div>
+      <ol id="offer-steps"></ol>
+      <div class="offer-actions"><button id="offer-yes">Accept (Y)</button><button id="offer-no" class="ghost">Decline (N)</button></div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <section>
+      <h2>You</h2>
+      <div id="me" class="me"></div>
+      <div id="inventory" class="chips"></div>
+    </section>
+    <section>
+      <h2>Quests</h2>
+      <ul id="quests" class="quests"><li class="muted">Talk to villagers to find work.</li></ul>
+    </section>
+    <section class="wm">
+      <h2>World model view</h2>
+      <label for="renderer" class="sr">Renderer</label>
+      <select id="renderer"><option value="">Prompt only</option></select>
+      <div id="wm-frame" class="wm-frame"><span class="muted">No renderer connected. The prompt below is what a world model would receive.</span></div>
+      <p id="wm-prompt" class="wm-prompt"></p>
+    </section>
+    <section class="log">
+      <h2>Nearby</h2>
+      <ul id="log"></ul>
+      <form id="chat-form">
+        <label for="chat-input" class="sr">Chat with nearby players</label>
+        <input id="chat-input" maxlength="200" autocomplete="off" placeholder="Chat with players near you">
+      </form>
+    </section>
+  </aside>
+</main>
+<script src="/client/renderers.js"></script>
+<script src="/client/game.js"></script>
+<script type="module" src="/client/odyssey.js"></script>
+</body>
+</html>
