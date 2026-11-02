@@ -11,7 +11,7 @@ PROPS = ["a lantern on a pole", "a rolled map", "a wooden shield", "a fishing ro
          "a feathered hat", "a carved walking staff", "a small hand drum"]
 
 ROLES = {
-    "elder": ("an elderly", "with a long braided white beard"),
+    "elder": ("a stooped", "with a long braided white beard"),
     "fisher": ("a weathered", "with a net slung over one shoulder"),
     "smith": ("a broad-shouldered", "with soot on the forearms and a hammer at the belt"),
     "herbalist": ("a wiry", "with dried flowers tucked into the hair"),
