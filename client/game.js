@@ -78,7 +78,11 @@
     if (!state.pid) return;
     if (typing()) { if (e.key === "Escape") { document.activeElement.blur(); hideDialog(); } return; }
     const k = e.key.toLowerCase();
-    if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) { state.keys.add(k); e.preventDefault(); }
+    if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) {
+      const fresh = !state.keys.has(k);
+      state.keys.add(k); e.preventDefault();
+      if (fresh) state.renderer?.input?.([...state.keys], [k]);
+    }
     else if (k === "e") send({ type: "interact" });
     else if (k === "f") send({ type: "campfire" });
     else if (k === "g") send({ type: "give" });
@@ -88,8 +92,10 @@
     else if (k === "enter") { $("chat-input").focus(); e.preventDefault(); }
     else if (k === "escape") hideDialog();
   });
-  window.addEventListener("keyup", (e) => state.keys.delete(e.key.toLowerCase()));
-  window.addEventListener("blur", () => state.keys.clear());
+  window.addEventListener("keyup", (e) => {
+    if (state.keys.delete(e.key.toLowerCase())) state.renderer?.input?.([...state.keys], []);
+  });
+  window.addEventListener("blur", () => { state.keys.clear(); state.renderer?.input?.([], []); });
 
   setInterval(() => {
     const k = state.keys;

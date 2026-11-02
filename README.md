@@ -61,6 +61,20 @@ The five probes are cross-view agreement, revisit retention, cross-player state 
 persistence, and shared-structure state change. A Claude vision judge marks each ground-truth fact present,
 absent or unclear. It never sees the prompt. Results land in `runs/<adapter>-seed<n>/report.md`.
 
+## World models in the live panel
+
+Keys live in a `.env` file in this folder (git ignores it). The server reads it at start and never sends a key to
+the browser: Odyssey gets short-lived session tokens, and fal traffic goes through a narrow proxy that only opens
+ABot-World-0 realtime sessions.
+
+| Option in the panel | Key in `.env` | Cost |
+|---|---|---|
+| ABot-World-0 via fal (live) | `FAL_KEY` | $0.00125 per second, about $4.50 per hour |
+| Odyssey-2 Pro (live) | `ODYSSEY_API_KEY` | access by request |
+
+With ABot, your WASD and arrow keys drive its camera and the server's view prompt steers its scene. It keeps its
+own world, so watch how far it drifts from the map on the left.
+
 To watch Odyssey live in the game, set `ODYSSEY_API_KEY` before `serve`, install the Odyssey extra, and pick
 "Odyssey-2 Pro (live)" in the World model view panel. The key stays on the server.
 

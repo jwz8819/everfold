@@ -6,6 +6,7 @@
 //     async start(container, prompt) {},   // open a session, mount a <video> or <img>
 //     async update(prompt) {},             // steer the running session with a new prompt
 //     async stop() {},                     // close the session and free the GPU
+//     input(held, pressed) {},             // optional: keys held now and keys newly pressed, for action-driven models
 //   });
 window.WorldModelRenderers = (() => {
   const registry = {};

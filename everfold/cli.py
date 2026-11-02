@@ -15,6 +15,22 @@ import sys
 from pathlib import Path
 
 
+def load_env(path: Path = Path(__file__).resolve().parent.parent / ".env") -> None:
+    """Read KEY=value lines from a local .env without overriding variables already set."""
+    import os
+
+    if not path.is_file():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k, v = k.removeprefix("export ").strip(), v.strip().strip("'\"")
+        if k and k not in os.environ:
+            os.environ[k] = v
+
+
 def cmd_serve(args) -> None:
     from aiohttp import web
 
@@ -27,8 +43,12 @@ def cmd_serve(args) -> None:
     llm = LLM(client, model=args.model) if client else LLM(None)
     store = Store(Path(args.data) / f"world-{args.seed}.sqlite")
     game = Game(args.seed, llm, store)
+    import os
+
     mode = f"Claude ({llm.model})" if llm.enabled else "scripted (set ANTHROPIC_API_KEY for Claude villagers)"
+    models = [n for n, k in (("ABot-World-0 via fal", "FAL_KEY"), ("Odyssey", "ODYSSEY_API_KEY")) if os.environ.get(k)]
     print(f"Everfold seed {args.seed} on http://localhost:{args.port}  ·  villagers and quests: {mode}")
+    print(f"World models available in the panel: {', '.join(models) or 'none (add keys to .env)'}")
     web.run_app(Server(game).app(), host=args.host, port=args.port, print=None)
 
 
@@ -69,6 +89,7 @@ def cmd_bench(args) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
+    load_env()
     p = argparse.ArgumentParser(prog="everfold")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("serve", help="run the multiplayer game server")

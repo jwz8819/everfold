@@ -17,6 +17,7 @@ from pathlib import Path
 from aiohttp import WSMsgType, web
 
 from . import config as C
+from .falproxy import FalProxy
 from .game import Game
 from .render.prompt import compile_prompt
 from .render.view import view
@@ -41,8 +42,9 @@ class Session:
 
 
 class Server:
-    def __init__(self, game: Game, save_every: float = 10.0):
+    def __init__(self, game: Game, save_every: float = 10.0, fal: FalProxy | None = None):
         self.game = game
+        self.fal = fal or FalProxy()
         self.sessions: dict[str, Session] = {}
         self.save_every = save_every
         self._last_save = time.monotonic()
@@ -53,6 +55,8 @@ class Server:
         app = web.Application(middlewares=[no_cache])
         app.router.add_get("/ws", self.ws_handler)
         app.router.add_post("/odyssey/credentials", self.odyssey_credentials)
+        for method in ("GET", "POST", "PUT"):
+            app.router.add_route(method, "/api/fal/proxy", self.fal.handle)
         app.router.add_get("/", self.index)
         app.router.add_static("/client/", CLIENT_DIR)
         app.on_startup.append(self._start)
@@ -68,6 +72,7 @@ class Server:
     async def _stop(self, app) -> None:
         if self._loop_task:
             self._loop_task.cancel()
+        await self.fal.close()
         self.game.save()
 
     async def odyssey_credentials(self, request: web.Request) -> web.Response:
