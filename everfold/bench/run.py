@@ -121,7 +121,7 @@ def score(steps: list[ProbeStep], verdicts: dict[str, dict[str, str]]) -> dict:
 
 def report(m: dict, steps: list[ProbeStep], verdicts: dict) -> str:
     fmt = lambda x: "n/a" if x is None else f"{x:.0%}"
-    lines = [f"# Hyrule probe report: {m['adapter']}, seed {m['seed']}", "",
+    lines = [f"# Everfold probe report: {m['adapter']}, seed {m['seed']}", "",
              f"Frames judged: {m['frames_judged']} of {m['steps']} steps.", "",
              "| Measure | Score |", "|---|---|",
              f"| Cross-view agreement | {fmt(m['cross_view_agreement'])} |",

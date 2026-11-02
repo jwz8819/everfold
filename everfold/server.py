@@ -22,7 +22,7 @@ from .render.prompt import compile_prompt
 from .render.view import view
 from .world import FEATURES, GROUND, ITEM_LABELS, chunk_of
 
-log = logging.getLogger("hyrule.server")
+log = logging.getLogger("everfold.server")
 CLIENT_DIR = Path(__file__).resolve().parent.parent / "client"
 PALETTE = {
     "ground": {k: {"color": g.color, "label": g.label} for k, g in GROUND.items()},

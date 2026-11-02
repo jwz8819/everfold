@@ -6,9 +6,9 @@ import json
 import logging
 import os
 
-log = logging.getLogger("hyrule.llm")
+log = logging.getLogger("everfold.llm")
 
-DEFAULT_MODEL = os.environ.get("HYRULE_MODEL", "claude-opus-5-5")
+DEFAULT_MODEL = os.environ.get("EVERFOLD_MODEL", "claude-opus-5-5")
 
 
 class LLM:

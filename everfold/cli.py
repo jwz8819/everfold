@@ -1,9 +1,9 @@
 """Command line.
 
-    hyrule serve [--seed 42] [--port 8765]           play in the browser; open two windows for multiplayer
-    hyrule bench --adapter reference                 run the probes through the control renderer
-    hyrule bench --adapter prompts                   export probe prompts to run a model by hand
-    hyrule bench --adapter folder --frames DIR       judge frames captured by hand from any model
+    everfold serve [--seed 42] [--port 8765]           play in the browser; open two windows for multiplayer
+    everfold bench --adapter reference                 run the probes through the control renderer
+    everfold bench --adapter prompts                   export probe prompts to run a model by hand
+    everfold bench --adapter folder --frames DIR       judge frames captured by hand from any model
 """
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def cmd_bench(args) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
-    p = argparse.ArgumentParser(prog="hyrule")
+    p = argparse.ArgumentParser(prog="everfold")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("serve", help="run the multiplayer game server")
     s.add_argument("--seed", type=int, default=42)

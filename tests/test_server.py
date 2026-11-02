@@ -1,7 +1,7 @@
 import asyncio
 
-from hyrule.game import Game
-from hyrule.server import Server
+from everfold.game import Game
+from everfold.server import Server
 
 
 async def recv_until(ws, kind, limit=200):

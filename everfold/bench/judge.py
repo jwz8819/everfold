@@ -11,7 +11,7 @@ import logging
 
 from .probes import ProbeStep
 
-log = logging.getLogger("hyrule.judge")
+log = logging.getLogger("everfold.judge")
 
 JUDGE_SYSTEM = """You check whether an image shows specific things. You get one image and a numbered list of claims.
 For each claim answer:

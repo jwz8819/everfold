@@ -1,4 +1,4 @@
-# Project Hyrule (codename) · the Everfold
+# Everfold
 
 A real-time multiplayer open world that writes itself as players walk, built as a testbed for comparing
 generative world models. The game server holds every fact. World models only draw what a player's camera sees,
@@ -13,7 +13,7 @@ uv venv .venv && uv pip install -e ".[dev,claude]"
 ```
 
 ```bash
-.venv/bin/python -m hyrule.cli serve
+.venv/bin/python -m everfold.cli serve
 ```
 
 Open http://localhost:8765 in two browser windows to play together.
@@ -47,7 +47,7 @@ chests and flowers regrow. Everything players change is saved to SQLite and surv
 ## Benchmark
 
 ```bash
-.venv/bin/python -m hyrule.cli bench --adapter reference
+.venv/bin/python -m everfold.cli bench --adapter reference
 ```
 
 | Adapter | Use |
@@ -68,12 +68,12 @@ To watch Odyssey live in the game, set `ODYSSEY_API_KEY` before `serve`, install
 
 | Path | Job |
 |---|---|
-| `hyrule/world.py` | chunked map generation and player changes |
-| `hyrule/game.py` | the authoritative game: movement, gathering, shrines, villagers, quests, events |
-| `hyrule/content/` | Claude calls with scripted fallbacks: villagers, dialogue, quests |
-| `hyrule/render/` | camera view, prompt compiler, reference renderer |
-| `hyrule/bench/` | probes, adapters, judge, scoring |
-| `hyrule/server.py` | WebSocket server and static client |
+| `everfold/world.py` | chunked map generation and player changes |
+| `everfold/game.py` | the authoritative game: movement, gathering, shrines, villagers, quests, events |
+| `everfold/content/` | Claude calls with scripted fallbacks: villagers, dialogue, quests |
+| `everfold/render/` | camera view, prompt compiler, reference renderer |
+| `everfold/bench/` | probes, adapters, judge, scoring |
+| `everfold/server.py` | WebSocket server and static client |
 | `client/` | browser client and live renderer plug-ins |
 
 ## Tests

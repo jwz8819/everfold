@@ -1,5 +1,5 @@
-from hyrule.config import CHUNK
-from hyrule.world import GROUND, World
+from everfold.config import CHUNK
+from everfold.world import GROUND, World
 
 
 def test_same_seed_same_world_different_seed_different_world():

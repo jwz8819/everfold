@@ -1,5 +1,5 @@
 [project]
-name = "project-hyrule"
+name = "everfold"
 version = "0.1.0"
 description = "Testbed for generative world models in real-time multiplayer open worlds"
 requires-python = ">=3.11"
@@ -11,7 +11,7 @@ odyssey = ["odyssey @ git+https://github.com/odysseyml/odyssey-python.git", "num
 dev = ["pytest>=8", "pytest-aiohttp>=1.0"]
 
 [project.scripts]
-hyrule = "hyrule.cli:main"
+everfold = "everfold.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -21,7 +21,7 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["hyrule"]
+packages = ["everfold"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

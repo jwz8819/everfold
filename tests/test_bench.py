@@ -2,10 +2,10 @@ import json
 
 import pytest
 
-from hyrule.bench import adapters as A
-from hyrule.bench.judge import Judge
-from hyrule.bench.probes import PROBES, build
-from hyrule.bench.run import run, score
+from everfold.bench import adapters as A
+from everfold.bench.judge import Judge
+from everfold.bench.probes import PROBES, build
+from everfold.bench.run import run, score
 
 
 @pytest.mark.parametrize("seed", [42, 7, 2026, 31337])

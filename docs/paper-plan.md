@@ -1,11 +1,12 @@
 # Paper plan (working draft, 2026-11-01)
 
-Internal codename: Project Hyrule. "Hyrule" and "Zelda" are Nintendo trademarks, so the public name of the
-testbed and the paper must be original. The in-game world is already called the Everfold.
+The testbed, the benchmark and the in-game world are all named **Everfold**. The paper is written in English.
 
 ## Working title
 
-**Who Holds the World? Evaluating Generative World Models as Renderers for Real-Time Multiplayer Open Worlds**
+**Everfold: Benchmarking Generative World Models as Renderers for Real-Time Multiplayer Open Worlds**
+
+Alternative: *Who Holds the World? Evaluating Generative World Models in Real-Time Multiplayer Open Worlds*
 
 ## The gap
 
@@ -15,6 +16,7 @@ on its own game and its own terms:
 
 | Work | What it does | What it leaves open |
 |---|---|---|
+| PROWL-2 (Odyssey, Oct 2026, paper) | multi-agent RL inside a world model; a "fidelity gate" replays states and withholds rollouts that diverge from real trajectories | fidelity is checked against recorded trajectories in StarCraft and quadrupeds, not against a live multiplayer server |
 | Agora-2 (Odyssey, Sep 2026, tech report) | learned simulation model + one renderer per player | its report says view agreement and latency were not measured |
 | MASS (2608.06257) | learned logic engine holds state, separate rendering engine per player | evaluated on a Snake benchmark |
 | Solaris (2602.22208) | open two-player Minecraft model with view consistency metrics | loses shared context when players leave each other's view |

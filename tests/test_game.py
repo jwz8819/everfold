@@ -2,10 +2,10 @@ import math
 
 import pytest
 
-from hyrule.content import quests as Q
-from hyrule.content.llm import LLM
-from hyrule.game import Game
-from hyrule.store import Store
+from everfold.content import quests as Q
+from everfold.content.llm import LLM
+from everfold.game import Game
+from everfold.store import Store
 
 
 def find_feature(game, code, near=(16, 16), r=40):

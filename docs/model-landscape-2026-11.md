@@ -48,5 +48,8 @@ Docs index: https://documentation.api.odyssey.ml/llms.txt
 - MIND (2602.08025), DreamX-World 1.0 (2606.16993), Latent Spatial Memory (2606.09828): revisit and persistence.
 - WorldRoamBench (2606.31672; shares authors with ABot-World-0), WorldScore (2504.00983): evaluation.
 - minWM (2605.30263), ABot-World-0 (2607.19191), Matrix-Game 2.0 (2508.13009): runnable systems.
+- PROWL-2 (https://prowl.odyssey.ml/PROWL-2.pdf, Oct 2026): agents and their world model learn on separate
+  curricula; a fidelity gate withholds hallucinated rollouts. Closest idea to Everfold's grading of model output
+  against engine truth.
 - A Definition and Roadmap for World Models (2607.06401) and World Models: A Comprehensive Survey (2606.00133):
   framing and taxonomy. HAI issue brief (July 2026): the evaluation gap.

@@ -1,8 +1,8 @@
-from hyrule import config as C
-from hyrule.game import Game
-from hyrule.render.prompt import compile_prompt
-from hyrule.render.reference import render_reference
-from hyrule.render.view import view
+from everfold import config as C
+from everfold.game import Game
+from everfold.render.prompt import compile_prompt
+from everfold.render.reference import render_reference
+from everfold.render.view import view
 
 
 def tower_game():
