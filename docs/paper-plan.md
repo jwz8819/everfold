@@ -17,6 +17,7 @@ on its own game and its own terms:
 | Work | What it does | What it leaves open |
 |---|---|---|
 | PROWL-2 (Odyssey, Oct 2026, paper) | multi-agent RL inside a world model; a "fidelity gate" replays states and withholds rollouts that diverge from real trajectories | fidelity is checked against recorded trajectories in StarCraft and quadrupeds, not against a live multiplayer server |
+| MIRA (General Intuition, Kyutai, Epic) | 5B multiplayer model, Rocket League 2v2 with four synchronised views | code open, weights not released; one game |
 | Agora-2 (Odyssey, Sep 2026, tech report) | learned simulation model + one renderer per player | its report says view agreement and latency were not measured |
 | MASS (2608.06257) | learned logic engine holds state, separate rendering engine per player | evaluated on a Snake benchmark |
 | Solaris (2602.22208) | open two-player Minecraft model with view consistency metrics | loses shared context when players leave each other's view |
@@ -49,7 +50,9 @@ generators, multiplayer-native models) on the same multiplayer properties agains
 | Order | Model | Pattern | Access | What to run |
 |---|---|---|---|---|
 | 0 | Reference renderer | control | built in | calibrate the judge against 100+ human labels first |
-| 1 | Odyssey-2 Pro | engine holds state, text-steered | self-serve API, free tier 5 streams | `hyrule bench --adapter odyssey` |
+| 1 | ABot-World-0 on fal.ai | model holds state, steered by keys and prompts | self-serve fal account | new adapter: player keys become model commands, the view prompt steers the scene |
+| 1b | Odyssey-2 Pro | engine holds state, text-steered | existing users only; request access | `everfold bench --adapter odyssey` once a key arrives |
+| 1c | Decart Lucy Restyle 2 | engine renders geometry, model restyles | Decart platform | restyle a simple third-person render of the true state |
 | 2 | Genie 3 (Project Genie) | text/image-steered | Google AI Ultra, 60 s sessions, no API | export prompts, capture frames by hand, `--adapter folder` |
 | 3 | World Labs Marble | asset generator | paid API, about $1.20 per world | generate each landmark once, render in the engine |
 | 4 | Waypoint-1.5, ABot-World-0, Matrix-Game 2.0 | model holds state | open weights, one rented GPU | action-driven adapter; only self-consistency probes apply |
