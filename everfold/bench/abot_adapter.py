@@ -43,8 +43,11 @@ RUN_URL = "https://fal.run"
 APP = "fal-ai/abot-world-0"
 IMAGE_APP = "fal-ai/flux/schnell"
 PRICE_PER_S = 0.00125
-TILE_S = 0.5        # seconds of "forward" per map tile (drive condition)
-TURN_S = 1.0        # seconds of look_left / look_right per quarter turn (drive condition)
+# Drive condition. Calibrated by eye on 2026-11-02 in the preset world: holding look_right turned the camera
+# ~25 degrees in 1 s, ~55 in 2 s, ~90-100 in 4 s. Walking speed could not be read (the turn faced a wall), so a
+# tile is half a second of "forward", which keeps the longest probe leg (17 tiles) under 9 s.
+TILE_S = 0.5        # seconds of "forward" per map tile
+TURN_S = 3.5        # seconds of look_left / look_right per quarter turn
 COMMAND_EVERY_S = 0.1
 MAX_PROMPT = 2000
 CHANGE_THRESHOLD = 12.0     # mean absolute pixel change that counts as "the picture responded"
