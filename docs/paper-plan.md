@@ -25,6 +25,27 @@ on its own game and its own terms:
 | WorldCast (2610.12412) | per-player generators that exchange state, Counter-Strike 2 | no hits or deaths modelled |
 | Multiverse (Enigma Labs) | two-player split-screen racing | tiny resolution |
 
+### Live single-player worlds
+
+Live worlds such as Google DeepMind's Genie 4 and Runway's GWM-1 Worlds generate frames in real time as the user
+steers. Genie 4 (research preview to trusted testers, 27 Oct 2026) also generates sound natively, including
+characters who converse and react in real time, and creatives already test it as a "draft mode" for
+previsualisation. DeepMind's own post says visual details and object permanence can still drift over time,
+particularly in longer sessions and after multiple complex prompt edits; press coverage puts consistent scenes at
+about two minutes. GWM-1 Worlds (11 Dec 2025) turns a still image and a prompt into an explorable space and claims
+that returning to an earlier position restores the same view, which is exactly what our revisit probe measures.
+Neither describes a world shared by several players.
+
+Use in the paper: (1) motivation, since live worlds are already used as production tools while their drift is
+documented only in vendors' own words; (2) the vendor claims (DeepMind's drift caveat, Runway's revisit claim)
+become hypotheses Everfold tests against engine truth; (3) the gap, since all of these are single-viewer.
+
+Sources: https://deepmind.google/blog/genie-4-a-new-generation-of-world-simulation/ ,
+https://blog.google/innovation-and-ai/models-and-research/google-deepmind/introducing-genie-4/ ,
+https://runway.com/research/introducing-runway-gwm-1 . The two-minute figure is from press reports
+(e.g. https://northeasttimes.com/2026/10/27/google-deepmind-opens-genie-4-preview-to-testers-with-audio-and-two-minute/ ),
+not from DeepMind; cite it as such or leave it out.
+
 No benchmark compares heterogeneous world models (text-steered APIs, keyboard-driven open models, static 3D
 generators, multiplayer-native models) on the same multiplayer properties against an authoritative ground truth.
 
@@ -54,6 +75,8 @@ generators, multiplayer-native models) on the same multiplayer properties agains
 | 1b | Odyssey-2 Pro | engine holds state, text-steered | existing users only; request access | `everfold bench --adapter odyssey` once a key arrives |
 | 1c | Decart Lucy Restyle 2 | engine renders geometry, model restyles | Decart platform | restyle a simple third-person render of the true state |
 | 2 | Genie 3 (Project Genie) | text/image-steered | Google AI Ultra, 60 s sessions, no API | export prompts, capture frames by hand, `--adapter folder` |
+| 2b | Genie 4 | live world with audio and talking characters | trusted testers now; "coming soon" to AI Ultra (Project Genie) and Gemini API early access | same as Genie 3 once in Project Genie; API adapter when the Gemini API opens. Test DeepMind's drift-after-edits caveat directly: propagation and shrine are prompt edits |
+| 2c | Runway GWM-1 Worlds | live world from a still image | early-access form on Runway's GWM-1 page | apply now; revisit probe tests Runway's "returning restores the same view" claim |
 | 3 | World Labs Marble | asset generator | paid API, about $1.20 per world | generate each landmark once, render in the engine |
 | 4 | Waypoint-1.5, ABot-World-0, Matrix-Game 2.0 | model holds state | open weights, one rented GPU | action-driven adapter; only self-consistency probes apply |
 | 5 | Solaris | multiplayer-native | open weights, 48 GB GPU | its own two-player cross-view run as the multiplayer baseline |

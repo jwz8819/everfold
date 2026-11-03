@@ -20,7 +20,7 @@ Compiled from official pages, GitHub, Hugging Face and arXiv. Items marked UNVER
 | Agora-1 | Odyssey | multiplayer shared state | web preview | GoldenEye-style actions | n/p | n/p | 4 players | n/a | proprietary |
 | Agora-2 | Odyssey | multiplayer: learned simulation + per-player renderer + authoritative server | web preview + tech report, no API or weights | movement, attack | 640×480; latency not measured in report | n/p | 4 humans + agents | 4× RTX PRO 4500 per 4-player session | proprietary |
 | Genie 3 / Project Genie | Google DeepMind | frame-by-frame | Google AI Ultra subscribers, no API | text, image, camera | 720p, 24 fps | 60 s per generation | no | Ultra subscription | proprietary |
-| Genie 4 | Google DeepMind | frame-by-frame with audio | trusted testers, waitlist; Gemini API early access "coming soon" | keyboard, camera, text | n/p | short sessions | n/p | n/p | proprietary |
+| Genie 4 | Google DeepMind | frame-by-frame with native audio and talking characters | research preview to trusted testers (27 Oct 2026); "coming soon" to AI Ultra in Project Genie and Gemini API / AI Studio early access | keyboard, camera, text; Gemini steers the simulation | n/p | "short sessions"; drift grows with session length and after multiple complex prompt edits (DeepMind); about 2 min per press reports | none described | n/p | proprietary |
 | Marble (World API) | World Labs | static 3D (Gaussian splats + mesh) | self-serve paid API | text, images, video | about 5 min per world | static | via your engine | about $1.20–1.28 per world; drafts $0.12–0.20 | proprietary |
 | Waypoint-1.5 | Overworld | frame-by-frame | open weights | keyboard, mouse, text, image | 720p, 56 fps on RTX 5090 | context about 10 s | no | RTX 30-series or newer | Apache 2.0 |
 | Waypoint-2 | Overworld | frame-by-frame | invite beta, not on Hugging Face | text, keyboard, mouse | 720p, 75 fps on RTX 5090 | n/p | no | n/p | n/p |
@@ -31,7 +31,7 @@ Compiled from official pages, GitHub, Hugging Face and arXiv. Items marked UNVER
 | ABot-World-0 | Alibaba AMAP | frame-by-frame, third-person | open weights | raw keyboard | 720p, 16 fps, 1.2 s action-to-frame | very long | no | 1× RTX 5090, about 19 GB | Apache 2.0 |
 | WHAM / Muse | Microsoft | frame-by-frame | open weights, research only | controller | 300×180, not real-time | 10 frames | trained on 4v4 play | A6000 | Microsoft Research licence |
 | Cosmos 3 | NVIDIA | action-to-video for robots and cars | open weights | camera, robot, vehicle actions | not real-time | n/a | no | H100 | OpenMDW 1.1 |
-| GWM-1 Worlds | Runway | frame-by-frame | no Worlds API | actions, camera | 720p | 2 min | no | n/a | proprietary |
+| GWM-1 Worlds | Runway | frame-by-frame from a still image + prompt | early-access form on Runway's GWM-1 page; no public Worlds API | movement, prompt-defined physics | 720p (GWM-1 overall) | up to 2 min of video (GWM-1 overall); claims returning to an earlier position restores the view | none described | n/a | proprietary |
 | Multiverse | Enigma Labs | multiplayer split-screen | open weights | two players' keyboards | 48×64 per player | n/p | 2 players | consumer GPU | MIT |
 | Solaris | NYU | multiplayer multi-view | open weights | Minecraft actions | n/p | n/p | 2 players | at least 48 GB GPU | Apache 2.0 |
 
@@ -51,6 +51,9 @@ Docs index: https://documentation.api.odyssey.ml/llms.txt
   10 queued simulation jobs.
 
 ## Papers to cite
+
+- Genie 4 (DeepMind blog, 27 Oct 2026) and Runway GWM-1 (11 Dec 2025): live single-player worlds used as
+  previz tools; vendor-stated drift and revisit claims that Everfold can test.
 
 - Solaris (2602.22208), MultiGen (2603.06679), MASS (2608.06257), WorldCast (2610.12412), Agora-2 tech report:
   multiplayer and shared state.
