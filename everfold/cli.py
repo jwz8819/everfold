@@ -7,6 +7,8 @@
     everfold bench --adapter abot|lingbot|eden [--start image] [--drive]
                                                        a realtime world model on fal, headless (billed per second)
     everfold rescore runs/<run> ...                    re-score finished runs after a scoring change
+    everfold label                                     label judged frames by hand in the browser
+    everfold agreement                                 judge vs human agreement from those labels
 """
 from __future__ import annotations
 
@@ -117,6 +119,31 @@ def cmd_rescore(args) -> None:
     asyncio.run(go())
 
 
+def cmd_label(args) -> None:
+    from aiohttp import web
+
+    from .bench.labels import LabelApp
+
+    try:
+        app = LabelApp(Path(args.runs), Path(args.labels), args.labeler, args.n)
+    except (OSError, RuntimeError) as e:
+        sys.exit(str(e))
+    print(f"Labelling {len(app.sample)} frames. Open http://127.0.0.1:{args.port} in your browser.")
+    print("Answers save after every frame; stop with Ctrl+C and run this again to resume.")
+    web.run_app(app.app(), host="127.0.0.1", port=args.port, print=None)
+
+
+def cmd_agreement(args) -> None:
+    from .bench.labels import agreement, agreement_report
+
+    a = agreement(Path(args.runs), Path(args.labels))
+    if not a["claims"]:
+        sys.exit("No labels yet. Run `everfold label` first.")
+    report = agreement_report(a)
+    (Path(args.labels) / "agreement.md").write_text(report, encoding="utf-8")
+    print(report)
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
     load_env()
@@ -150,6 +177,19 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("runs", nargs="+", help="run folders, e.g. runs/abot-preset-seed42")
     r.add_argument("--judge-model", default="claude-opus-5-5", help="used only if the probes gained facts")
     r.set_defaults(fn=cmd_rescore)
+
+    lb = sub.add_parser("label", help="label judged frames by hand to calibrate the judge")
+    lb.add_argument("--runs", default="runs")
+    lb.add_argument("--labels", default="labels")
+    lb.add_argument("--labeler", default="human1", help="a name for whoever is labelling (no real names needed)")
+    lb.add_argument("--n", type=int, default=100, help="frames to sample the first time")
+    lb.add_argument("--port", type=int, default=8770)
+    lb.set_defaults(fn=cmd_label)
+
+    ag = sub.add_parser("agreement", help="compare human labels with the judge")
+    ag.add_argument("--runs", default="runs")
+    ag.add_argument("--labels", default="labels")
+    ag.set_defaults(fn=cmd_agreement)
     args = p.parse_args(argv)
     args.fn(args)
 
