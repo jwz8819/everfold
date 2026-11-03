@@ -12,7 +12,7 @@ from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from av import VideoFrame
 
-from everfold.bench.abot_adapter import APP, FALLBACK_STUN, IMAGE_APP, ABotAdapter, ice_servers
+from everfold.bench.abot_adapter import APP, FALLBACK_STUN, IMAGE_APP, ABotAdapter, ice_servers, plan_drive
 from everfold.bench.probes import build
 
 
@@ -98,11 +98,11 @@ class FakeBridge:
             await pc.close()
 
 
-async def run_steps(aiohttp_server, bridge, start="preset", n=2, heartbeat_s=5.0):
+async def run_steps(aiohttp_server, bridge, start="preset", n=2, heartbeat_s=5.0, **kw):
     server = await aiohttp_server(bridge.app())
     base = str(server.make_url("")).rstrip("/")
     a = ABotAdapter(api_key="kid:secret", settle_s=0.6, start=start, wma_url=base, run_url=base,
-                    heartbeat_s=heartbeat_s, ack_timeout_s=5)
+                    heartbeat_s=heartbeat_s, ack_timeout_s=5, **kw)
     steps = build(42, ["revisit"])[:n]
     frames = []
     try:
@@ -151,6 +151,34 @@ async def test_heartbeats_keep_the_lease(aiohttp_server):
     bridge = FakeBridge()
     await run_steps(aiohttp_server, bridge, n=3, heartbeat_s=0.3)
     assert bridge.heartbeats >= 2
+
+
+def test_plan_drive_turns_toward_each_leg_walks_forward_then_faces_the_view():
+    # facing north at (0,0) -> facing east at (3,-4): turn none, walk 4 north, turn right, walk 3 east
+    assert plan_drive((0, 0, "N"), (3, -4, "E"), 0.5, 1.0) == [("forward", 2.0), ("look_right", 1.0),
+                                                               ("forward", 1.5)]
+    # walking back south from a north-facing pose is a half turn, then the final facing is restored
+    assert plan_drive((0, 0, "N"), (0, 12, "N"), 0.5, 1.0) == [("look_right", 2.0), ("forward", 6.0),
+                                                               ("look_right", 2.0)]
+    assert plan_drive((5, 5, "E"), (5, 5, "N"), 0.5, 1.0) == [("look_left", 1.0)]
+    assert plan_drive((5, 5, "E"), (5, 5, "E"), 0.5, 1.0) == []
+
+
+async def test_drive_walks_the_avatar_between_poses_before_each_prompt(aiohttp_server):
+    bridge = FakeBridge()
+    steps = build(42, ["revisit"])
+    a, _, frames = await run_steps(aiohttp_server, bridge, start="preset", n=4, drive=True, tile_s=0.01,
+                                   turn_s=0.05)
+    seq = [m["type"] for m in bridge.received]
+    assert seq[0] == "configure" and seq.count("prompt") == 3 and seq[-1] == "stop"
+    held = [m["active"][0] for m in bridge.received if m["type"] == "commands" and m["active"]]
+    assert {"forward", "look_right"} <= set(held)
+    first_move = seq.index("commands")
+    assert seq[first_move - 1] == "configure"           # movement happens between updates, after the world exists
+    released = [m for m in bridge.received if m["type"] == "commands" and not m["active"]]
+    assert released and all(m["activated"] == [] for m in released)
+    assert a.name == "abot-preset-drive" and a.pose == (steps[3].view.x, steps[3].view.y, steps[3].view.facing)
+    assert a.stats()["drive_seconds"] > 0 and all(img for img, _ in frames)
 
 
 def test_ice_servers_put_tls_turn_first_for_aiortc():

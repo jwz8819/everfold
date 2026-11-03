@@ -75,6 +75,31 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
     return metrics
 
 
+def rescore(out: Path) -> dict:
+    """Recompute the scores of a finished run from its saved verdicts, after the scoring changes.
+
+    The steps are rebuilt from the seed (probes are deterministic) and checked against steps.jsonl, so a run
+    made with different probes is refused rather than scored against the wrong truth. Run-time fields such as
+    renderer stats and judge usage are kept."""
+    old = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+    saved = [json.loads(line) for line in (out / "steps.jsonl").read_text(encoding="utf-8").splitlines()]
+    steps = build(old["seed"], list(dict.fromkeys(s["probe"] for s in saved)))
+    if [json.loads(json.dumps(s.to_dict(), ensure_ascii=False)) for s in steps] != saved:
+        raise RuntimeError(f"{out}: probes changed since this run; rescoring would grade the wrong truth")
+    verdicts = {}
+    with (out / "verdicts.jsonl").open(encoding="utf-8") as f:
+        for line in f:
+            row = json.loads(line)
+            verdicts[row["id"]] = row["verdicts"]
+    metrics = {**old, **score(steps, verdicts)}
+    (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    (out / "report.md").write_text(report(metrics, steps, verdicts), encoding="utf-8")
+    return metrics
+
+
+RETENTION_KINDS = {"landmark", "person", "feature"}
+
+
 def _rate(xs: list[bool]) -> float | None:
     return round(sum(xs) / len(xs), 3) if xs else None
 
@@ -99,7 +124,8 @@ def score(steps: list[ProbeStep], verdicts: dict[str, dict[str, str]]) -> dict:
     if len(cv) == 2 and all(s.id in verdicts for s in cv):
         shared = set(cv[0].must) & set(cv[1].must)
         cross = _rate([all(verdicts[s.id].get(m) == "present" for s in cv) for m in shared])
-    # revisit: of the facts shown at the first pose, how many are shown again on return?
+    # revisit: of the scene objects shown at the first pose, how many are shown again on return? Light, weather
+    # and ground are left out: a frozen or generic picture keeps those for free.
     retained = []
     for s in steps:
         if s.compare_to is None or s.id not in verdicts:
@@ -107,7 +133,8 @@ def score(steps: list[ProbeStep], verdicts: dict[str, dict[str, str]]) -> dict:
         first = idx.get(f"{s.probe}-{s.compare_to:02d}")
         if first is None or first.id not in verdicts:
             continue
-        shown_first = {k for k, x in verdicts[first.id].items() if x == "present"}
+        objects = {f.id for f in first.view.facts if f.kind in RETENTION_KINDS}
+        shown_first = {k for k, x in verdicts[first.id].items() if x == "present" and k in objects}
         for k in shown_first:
             retained.append(verdicts[s.id].get(k) == "present")
     return {

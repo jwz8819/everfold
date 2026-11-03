@@ -9,6 +9,12 @@ Two start conditions, because ABot draws from its start image far more than from
   preset   the model's own default world, steered by prompt only
   image    a start image generated from the family's first prompt (FLUX schnell on fal), then prompt updates
 
+and, on top of either, `drive`: between steps the avatar is walked from the last probe pose to the next with
+movement commands (turn toward each leg, walk forward, turn to the final facing) before the prompt update. Prompts
+alone do not move ABot's camera, so without driving a revisit is never a revisit. A second player's view is
+reached the same way: one world, one camera, walked to where that player stands. TILE_S and TURN_S convert map
+tiles and quarter turns to seconds of held command; they are calibrated by eye and recorded with every run.
+
 The wire protocol follows fal's WMA client (`@fal-ai/client` src/realtime/wma.js) and the session contract at
 https://fal.ai/models/fal-ai/abot-world-0/start-session/llms.txt:
   POST wma.fal.run/ice {app_id}                    -> ice_servers
@@ -37,10 +43,39 @@ RUN_URL = "https://fal.run"
 APP = "fal-ai/abot-world-0"
 IMAGE_APP = "fal-ai/flux/schnell"
 PRICE_PER_S = 0.00125
+TILE_S = 0.5        # seconds of "forward" per map tile (drive condition)
+TURN_S = 1.0        # seconds of look_left / look_right per quarter turn (drive condition)
+COMMAND_EVERY_S = 0.1
 MAX_PROMPT = 2000
 CHANGE_THRESHOLD = 12.0     # mean absolute pixel change that counts as "the picture responded"
 ACKS = {"configure": "configured", "prompt": "prompt_applied", "reset": "reset_applied"}
 FALLBACK_STUN = "stun:stun.l.google.com:19302"
+
+
+COMPASS = "NESW"     # clockwise; the game's y axis points south, so N is (0, -1)
+
+
+def _turn(frm: str, to: str, turn_s: float) -> list[tuple[str, float]]:
+    q = (COMPASS.index(to) - COMPASS.index(frm)) % 4
+    if q == 0:
+        return []
+    return [("look_left", turn_s)] if q == 3 else [("look_right", q * turn_s)]
+
+
+def plan_drive(frm: tuple[float, float, str], to: tuple[float, float, str], tile_s: float,
+               turn_s: float) -> list[tuple[str, float]]:
+    """Movement commands that carry the avatar from one probe pose to the next: for each axis the player moved
+    along, turn to face that way and walk forward; then turn to the final facing. Walking forward rather than
+    strafing or backing up is what a third-person world model has seen most."""
+    (x0, y0, facing), (x1, y1, final) = frm, to
+    plan: list[tuple[str, float]] = []
+    for delta, pos, neg in ((y1 - y0, "S", "N"), (x1 - x0, "E", "W")):
+        if abs(delta) < 0.5:
+            continue
+        way = pos if delta > 0 else neg
+        plan += _turn(facing, way, turn_s) + [("forward", abs(delta) * tile_s)]
+        facing = way
+    return plan + _turn(facing, final, turn_s)
 
 
 def _turn_rank(url: str) -> int:
@@ -73,6 +108,7 @@ def ice_servers(vended: list[dict], make) -> list:
 
 class ABotAdapter:
     def __init__(self, api_key: str | None = None, settle_s: float = 5.0, start: str = "preset",
+                 drive: bool = False, tile_s: float | None = None, turn_s: float | None = None,
                  wma_url: str = WMA_URL, run_url: str = RUN_URL, heartbeat_s: float = 5.0,
                  ack_timeout_s: float = 30.0):
         from .. import falproxy
@@ -82,8 +118,11 @@ class ABotAdapter:
             raise RuntimeError("Set FAL_KEY to run the ABot adapter.")
         if start not in ("preset", "image"):
             raise ValueError("start must be 'preset' or 'image'")
-        self.name = f"abot-{start}"
+        self.name = f"abot-{start}" + ("-drive" if drive else "")
         self.start, self.settle_s = start, settle_s
+        self.drive, self.tile_s, self.turn_s = drive, tile_s or TILE_S, turn_s or TURN_S
+        self.pose: tuple[float, float, str] | None = None   # where the avatar is, as far as our commands say
+        self.drive_s = 0.0
         self.wma_url, self.run_url = wma_url.rstrip("/"), run_url.rstrip("/")
         self.heartbeat_s, self.ack_timeout_s = heartbeat_s, ack_timeout_s
         self.http: ClientSession | None = None
@@ -243,13 +282,30 @@ class ABotAdapter:
             self.http = ClientSession()
         self.start_image = None
         self.latest = None
+        self.pose = None
         await self._connect()
+
+    async def _drive(self, to: tuple[float, float, str]) -> None:
+        """Hold each planned command for its duration, re-reporting it like a held key, then release."""
+        for cmd, seconds in plan_drive(self.pose, to, self.tile_s, self.turn_s):
+            first, end = True, time.monotonic() + seconds
+            while time.monotonic() < end and not self.exhausted:
+                self._send({"type": "commands", "active": [cmd], "activated": [cmd] if first else []})
+                first = False
+                await asyncio.sleep(min(COMMAND_EVERY_S, max(end - time.monotonic(), 0.0)))
+            self._send({"type": "commands", "active": [], "activated": []})
+            self.drive_s += seconds
+            await asyncio.sleep(0.2)
+        self.pose = to
 
     async def frame(self, step: ProbeStep) -> tuple[bytes | None, float]:
         from PIL import Image
 
         t0 = time.monotonic()
         prompt = step.prompt[:MAX_PROMPT]
+        target = (step.view.x, step.view.y, step.view.facing)
+        if self.drive and self.configured and self.pose is not None and not self.exhausted:
+            await self._drive(target)
         for attempt in range(2):
             if self.exhausted:
                 await self._teardown()
@@ -264,6 +320,8 @@ class ABotAdapter:
             self._watch, self._responded = (time.monotonic(), self.latest), None
             try:
                 self.ack_s.append(await self._update(msg))
+                if msg["type"] == "configure":
+                    self.pose = target      # a fresh world starts with the avatar at this step's pose
                 self.configured = True
                 break
             except EOFError:
@@ -292,7 +350,9 @@ class ABotAdapter:
 
     def stats(self) -> dict:
         mean = lambda xs: round(sum(xs) / len(xs), 3) if xs else None
-        return {"start": self.start, "sessions": self.sessions, "session_seconds": round(self.session_s, 1),
+        drive = {"drive_seconds": round(self.drive_s, 1), "tile_s": self.tile_s, "turn_s": self.turn_s} \
+            if self.drive else {}
+        return {"start": self.start, **drive, "sessions": self.sessions, "session_seconds": round(self.session_s, 1),
                 "est_cost_usd": round(self.session_s * PRICE_PER_S, 4), "mean_ack_seconds": mean(self.ack_s),
                 "mean_response_seconds": mean(self.response_s), "responded_steps": len(self.response_s),
                 "errors": self.errors[:10]}

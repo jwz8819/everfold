@@ -5,6 +5,7 @@
     everfold bench --adapter prompts                   export probe prompts to run a model by hand
     everfold bench --adapter folder --frames DIR       judge frames captured by hand from any model
     everfold bench --adapter abot [--abot-start image] ABot-World-0 on fal, headless (billed per second)
+    everfold rescore runs/<run> ...                    re-score finished runs after a scoring change
 """
 from __future__ import annotations
 
@@ -72,7 +73,8 @@ def cmd_bench(args) -> None:
     elif args.adapter == "abot":
         from .bench.abot_adapter import ABotAdapter
         try:
-            adapter = ABotAdapter(settle_s=args.settle, start=args.abot_start)
+            adapter = ABotAdapter(settle_s=args.settle, start=args.abot_start, drive=args.abot_drive,
+                                  tile_s=args.abot_tile_s, turn_s=args.abot_turn_s)
         except RuntimeError as e:
             sys.exit(str(e))
     elif args.adapter == "folder":
@@ -94,6 +96,19 @@ def cmd_bench(args) -> None:
     print(f"Wrote {out}")
 
 
+def cmd_rescore(args) -> None:
+    from .bench.run import rescore
+
+    for d in args.runs:
+        try:
+            m = rescore(Path(d))
+        except (OSError, RuntimeError, KeyError, ValueError) as e:
+            sys.exit(f"{d}: {e}")
+        keys = ("cross_view_agreement", "revisit_retention", "propagation", "identity_persistence",
+                "shrine_state_change")
+        print(d, json.dumps({k: m[k] for k in keys}))
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
     load_env()
@@ -112,6 +127,9 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--adapter", default="reference", choices=["reference", "prompts", "folder", "odyssey", "abot"])
     b.add_argument("--abot-start", default="preset", choices=["preset", "image"],
                    help="ABot start world: its built-in preset, or an image generated from the first prompt")
+    b.add_argument("--abot-drive", action="store_true", help="walk ABot's avatar between probe poses")
+    b.add_argument("--abot-tile-s", type=float, default=None, help="seconds of forward per map tile")
+    b.add_argument("--abot-turn-s", type=float, default=None, help="seconds of look per quarter turn")
     b.add_argument("--settle", type=float, default=5.0, help="seconds to let a streaming model respond per step")
     b.add_argument("--frames", help="folder of hand-captured frames named <step id>.png")
     b.add_argument("--probes", nargs="*", choices=["cross_view", "revisit", "propagation", "identity", "shrine"])
@@ -119,6 +137,10 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--no-judge", action="store_true")
     b.add_argument("--out", default="runs")
     b.set_defaults(fn=cmd_bench)
+
+    r = sub.add_parser("rescore", help="recompute scores of finished runs from their saved verdicts")
+    r.add_argument("runs", nargs="+", help="run folders, e.g. runs/abot-preset-seed42")
+    r.set_defaults(fn=cmd_rescore)
     args = p.parse_args(argv)
     args.fn(args)
 

@@ -5,7 +5,7 @@ import pytest
 from everfold.bench import adapters as A
 from everfold.bench.judge import Judge
 from everfold.bench.probes import PROBES, build
-from everfold.bench.run import run, score
+from everfold.bench.run import RETENTION_KINDS, rescore, run, score
 
 
 @pytest.mark.parametrize("seed", [42, 7, 2026, 31337])
@@ -34,8 +34,36 @@ def test_revisit_only_counts_what_was_shown_the_first_time():
     landmark = next(f.id for f in last.view.facts if f.kind == "landmark")
     v[last.id][landmark] = "absent"
     m = score(steps, v)
-    shown_first = len(steps[0].view.facts)
+    shown_first = sum(f.kind in RETENTION_KINDS for f in steps[0].view.facts)
     assert m["revisit_retention"] == pytest.approx(round((shown_first - 1) / shown_first, 3))
+
+
+def test_revisit_ignores_light_weather_and_ground():
+    # A frozen picture that only ever matches the light and the ground must not score as perfect memory.
+    steps = build(42, ["revisit"])
+    v = {s.id: {f.id: "present" if f.kind not in RETENTION_KINDS else "absent" for f in s.view.facts}
+         for s in steps}
+    assert score(steps, v)["revisit_retention"] is None
+    assert any(f.kind not in RETENTION_KINDS for f in steps[0].view.facts)
+
+
+async def test_rescore_rewrites_scores_from_saved_verdicts(tmp_path, fake_claude):
+    def all_present(kw):
+        n = kw["messages"][0]["content"][1]["text"].count("\n")
+        return {"verdicts": [{"n": i + 1, "verdict": "present", "why": ""} for i in range(n)]}
+
+    steps = build(42, ["revisit"])
+    await run(42, A.ReferenceAdapter(), tmp_path, Judge(fake_claude(*[all_present] * len(steps))), ["revisit"])
+    m = json.loads((tmp_path / "metrics.json").read_text())
+    m["revisit_retention"] = 0.123                      # stale score from an older scoring rule
+    m["renderer"] = {"sessions": 1}
+    (tmp_path / "metrics.json").write_text(json.dumps(m))
+    out = rescore(tmp_path)
+    assert out["revisit_retention"] == 1.0 and out["renderer"] == {"sessions": 1}
+    assert json.loads((tmp_path / "metrics.json").read_text())["revisit_retention"] == 1.0
+    (tmp_path / "steps.jsonl").write_text((tmp_path / "steps.jsonl").read_text().replace("village", "hamlet"))
+    with pytest.raises(RuntimeError):
+        rescore(tmp_path)
 
 
 async def test_judge_reads_verdicts_and_survives_bad_output(fake_claude):
