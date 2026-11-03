@@ -4,6 +4,7 @@
     everfold bench --adapter reference                 run the probes through the control renderer
     everfold bench --adapter prompts                   export probe prompts to run a model by hand
     everfold bench --adapter folder --frames DIR       judge frames captured by hand from any model
+    everfold bench --adapter abot [--abot-start image] ABot-World-0 on fal, headless (billed per second)
 """
 from __future__ import annotations
 
@@ -68,6 +69,12 @@ def cmd_bench(args) -> None:
             adapter = OdysseyAdapter(settle_s=args.settle)
         except RuntimeError as e:
             sys.exit(str(e))
+    elif args.adapter == "abot":
+        from .bench.abot_adapter import ABotAdapter
+        try:
+            adapter = ABotAdapter(settle_s=args.settle, start=args.abot_start)
+        except RuntimeError as e:
+            sys.exit(str(e))
     elif args.adapter == "folder":
         if not args.frames:
             sys.exit("--frames is required with --adapter folder")
@@ -81,7 +88,7 @@ def cmd_bench(args) -> None:
             print("No ANTHROPIC_API_KEY: frames are saved but not judged.")
         else:
             judge = Judge(client, args.judge_model)
-    out = Path(args.out) / f"{args.adapter}-seed{args.seed}"
+    out = Path(args.out) / f"{adapter.name}-seed{args.seed}"
     m = asyncio.run(run(args.seed, adapter, out, judge, args.probes or None))
     print(json.dumps({k: v for k, v in m.items() if k != "judge"}, indent=2))
     print(f"Wrote {out}")
@@ -102,7 +109,9 @@ def main(argv: list[str] | None = None) -> None:
     s.set_defaults(fn=cmd_serve)
     b = sub.add_parser("bench", help="run the multiplayer world-model probes")
     b.add_argument("--seed", type=int, default=42)
-    b.add_argument("--adapter", default="reference", choices=["reference", "prompts", "folder", "odyssey"])
+    b.add_argument("--adapter", default="reference", choices=["reference", "prompts", "folder", "odyssey", "abot"])
+    b.add_argument("--abot-start", default="preset", choices=["preset", "image"],
+                   help="ABot start world: its built-in preset, or an image generated from the first prompt")
     b.add_argument("--settle", type=float, default=5.0, help="seconds to let a streaming model respond per step")
     b.add_argument("--frames", help="folder of hand-captured frames named <step id>.png")
     b.add_argument("--probes", nargs="*", choices=["cross_view", "revisit", "propagation", "identity", "shrine"])

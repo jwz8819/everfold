@@ -55,6 +55,8 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
             verdicts[s.id] = await judge.check(s, img)
     if current is not None:
         await adapter.close()
+    if hasattr(adapter, "aclose"):
+        await adapter.aclose()
 
     with (out / "verdicts.jsonl").open("w", encoding="utf-8") as f:
         for sid, v in verdicts.items():
@@ -64,6 +66,8 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
     metrics["seed"] = seed
     metrics["frames"] = sum(1 for s in steps if any((out / "frames").glob(f"{s.id}.*")))
     metrics["mean_frame_seconds"] = round(sum(latency.values()) / max(len(latency), 1), 3)
+    if hasattr(adapter, "stats"):
+        metrics["renderer"] = adapter.stats()
     if judge is not None:
         metrics["judge"] = {"model": judge.model, "usage": judge.usage, "failures": judge.failures}
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
@@ -122,8 +126,10 @@ def score(steps: list[ProbeStep], verdicts: dict[str, dict[str, str]]) -> dict:
 def report(m: dict, steps: list[ProbeStep], verdicts: dict) -> str:
     fmt = lambda x: "n/a" if x is None else f"{x:.0%}"
     lines = [f"# Everfold probe report: {m['adapter']}, seed {m['seed']}", "",
-             f"Frames judged: {m['frames_judged']} of {m['steps']} steps.", "",
-             "| Measure | Score |", "|---|---|",
+             f"Frames judged: {m['frames_judged']} of {m['steps']} steps.", ""]
+    if m.get("renderer"):
+        lines += ["Renderer: " + ", ".join(f"{k} {v}" for k, v in m["renderer"].items() if v not in (None, [])), ""]
+    lines += ["| Measure | Score |", "|---|---|",
              f"| Cross-view agreement | {fmt(m['cross_view_agreement'])} |",
              f"| Revisit retention | {fmt(m['revisit_retention'])} |",
              f"| Cross-player state propagation | {fmt(m['propagation'])} |",

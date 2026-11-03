@@ -56,10 +56,17 @@ chests and flowers regrow. Everything players change is saved to SQLite and surv
 | `prompts` | writes `prompts.md` so you can run any model by hand |
 | `folder --frames DIR` | judges frames you captured by hand, named `<step id>.png` |
 | `odyssey` | Odyssey-2 Pro through its Python SDK; needs `ODYSSEY_API_KEY` and `uv pip install -e ".[odyssey]"` |
+| `abot` | ABot-World-0 on fal, headless over WebRTC; needs `FAL_KEY` and `uv pip install -e ".[abot]"` |
 
 The five probes are cross-view agreement, revisit retention, cross-player state propagation, identity
 persistence, and shared-structure state change. A Claude vision judge marks each ground-truth fact present,
 absent or unclear. It never sees the prompt. Results land in `runs/<adapter>-seed<n>/report.md`.
+
+ABot draws mostly from its start image, so it has two start conditions. `--abot-start preset` (the default) keeps
+fal's built-in world and steers it by prompt only. `--abot-start image` first makes a start image from each probe
+family's opening prompt with FLUX schnell on fal, about $0.003 per image. A full run of 14 steps opens 5 sessions
+and uses about 2 to 3 minutes of ABot time, roughly $0.20. Session time, cost, and response times go into
+`metrics.json` under `renderer`.
 
 ## World models in the live panel
 
