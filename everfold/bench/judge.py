@@ -59,7 +59,7 @@ class Judge:
         """Map fact id -> present | absent | unclear. Facts the judge skipped come back unclear."""
         import anthropic
 
-        claims = step.view.facts
+        claims = step.claims
         listing = "\n".join(f"{i + 1}. {f.text}" for i, f in enumerate(claims))
         try:
             resp = await self.client.beta.messages.create(

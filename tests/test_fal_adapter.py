@@ -1,4 +1,4 @@
-"""The ABot adapter against a stand-in fal WMA bridge: a real aiortc peer on localhost, so the whole signalling,
+"""The fal world-model adapter against a stand-in fal WMA bridge: a real aiortc peer on localhost, so the whole signalling,
 data-channel and video path runs without fal or the network."""
 import asyncio
 import json
@@ -12,7 +12,9 @@ from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from av import VideoFrame
 
-from everfold.bench.abot_adapter import APP, FALLBACK_STUN, IMAGE_APP, ABotAdapter, ice_servers, plan_drive
+from everfold.bench.fal_adapter import FALLBACK_STUN, IMAGE_APP, MODELS, FalWorldAdapter, ice_servers, plan_drive
+
+APP = MODELS["abot"].app
 from everfold.bench.probes import build
 
 
@@ -101,7 +103,7 @@ class FakeBridge:
 async def run_steps(aiohttp_server, bridge, start="preset", n=2, heartbeat_s=5.0, **kw):
     server = await aiohttp_server(bridge.app())
     base = str(server.make_url("")).rstrip("/")
-    a = ABotAdapter(api_key="kid:secret", settle_s=0.6, start=start, wma_url=base, run_url=base,
+    a = FalWorldAdapter(api_key="kid:secret", settle_s=0.6, start=start, wma_url=base, run_url=base,
                     heartbeat_s=heartbeat_s, ack_timeout_s=5, **kw)
     steps = build(42, ["revisit"])[:n]
     frames = []
@@ -197,4 +199,4 @@ def test_needs_a_key(monkeypatch):
     for k in ("FAL_KEY", "FAL_KEY_ID", "FAL_KEY_SECRET"):
         monkeypatch.delenv(k, raising=False)
     with pytest.raises(RuntimeError):
-        ABotAdapter()
+        FalWorldAdapter()

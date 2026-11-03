@@ -5,7 +5,7 @@ import pytest
 from everfold.bench import adapters as A
 from everfold.bench.judge import Judge
 from everfold.bench.probes import PROBES, build
-from everfold.bench.run import RETENTION_KINDS, rescore, run, score
+from everfold.bench.run import RETENTION_KINDS, rescore, run, score, static_steps
 
 
 @pytest.mark.parametrize("seed", [42, 7, 2026, 31337])
@@ -16,7 +16,9 @@ def test_every_probe_builds_on_several_worlds(seed):
 
 
 def all_verdicts(steps, value):
-    return {s.id: {f.id: value for f in s.view.facts} for s in steps}
+    """Every true fact gets `value`; stale facts get the right answer when value is present."""
+    stale = "absent" if value == "present" else "present"
+    return {s.id: {f.id: value for f in s.view.facts} | {f.id: stale for f in s.stale} for s in steps}
 
 
 def test_a_perfect_renderer_scores_full_marks_and_a_blank_one_zero():
@@ -58,12 +60,60 @@ async def test_rescore_rewrites_scores_from_saved_verdicts(tmp_path, fake_claude
     m["revisit_retention"] = 0.123                      # stale score from an older scoring rule
     m["renderer"] = {"sessions": 1}
     (tmp_path / "metrics.json").write_text(json.dumps(m))
-    out = rescore(tmp_path)
+    out = await rescore(tmp_path)
     assert out["revisit_retention"] == 1.0 and out["renderer"] == {"sessions": 1}
     assert json.loads((tmp_path / "metrics.json").read_text())["revisit_retention"] == 1.0
     (tmp_path / "steps.jsonl").write_text((tmp_path / "steps.jsonl").read_text().replace("village", "hamlet"))
     with pytest.raises(RuntimeError):
-        rescore(tmp_path)
+        await rescore(tmp_path)
+
+
+async def test_rescore_rejudges_a_run_made_before_stale_facts(tmp_path, fake_claude):
+    def all_present(kw):
+        n = kw["messages"][0]["content"][1]["text"].count("\n") + 1
+        return {"verdicts": [{"n": i + 1, "verdict": "present", "why": ""} for i in range(n)]}
+
+    steps = build(42, ["shrine"])
+    await run(42, A.ReferenceAdapter(), tmp_path, Judge(fake_claude(*[all_present] * 2)), ["shrine"])
+    rows = [json.loads(l) for l in (tmp_path / "steps.jsonl").read_text().splitlines()]
+    (tmp_path / "steps.jsonl").write_text("".join(json.dumps({k: v for k, v in r.items() if k != "stale"}) + "\n"
+                                                  for r in rows))       # what an older run saved
+    with pytest.raises(RuntimeError, match="re-judge"):
+        await rescore(tmp_path)
+    j = Judge(fake_claude(*[all_present] * 2))
+    m = await rescore(tmp_path, j)
+    assert len(j.client.calls) == 2 and m["judge"]["rejudged"]
+    assert m["shrine_state_change"] == 0.0          # "all present" includes the stale gate: not a real change
+    assert "stale" in json.loads((tmp_path / "steps.jsonl").read_text().splitlines()[0])
+
+
+def test_state_change_needs_both_sides_so_a_frozen_after_picture_fails():
+    steps = build(42, ["shrine"])
+    good = all_verdicts(steps, "present")
+    assert score(steps, good)["shrine_state_change"] == 1.0
+    frozen = {s.id: dict(good[steps[1].id]) for s in steps}          # the "after" verdicts on both frames
+    frozen[steps[0].id] = {f.id: frozen[steps[0].id].get(f.id.replace("stale:", ""), "absent")
+                           for f in steps[0].claims}
+    assert score(steps, frozen)["shrine_state_change"] == 0.0
+
+
+def test_static_frames_void_pose_probes(tmp_path):
+    from PIL import Image
+
+    steps = build(42, ["cross_view", "propagation"])
+    frames = tmp_path / "frames"
+    frames.mkdir()
+    scene = Image.linear_gradient("L").resize((128, 72)).convert("RGB")
+    for s in steps:
+        scene.save(frames / f"{s.id}.png")
+    static = static_steps(steps, frames)
+    assert static == ["cross_view-01"]      # propagation's watcher never moves, so its repeats are fine
+    m = score(steps, all_verdicts(steps, "present"), static)
+    assert m["cross_view_agreement"] is None and m["static_camera_rate"] == 1.0 and m["propagation"] == 1.0
+    scene.point(lambda p: min(255, p + 40)).save(frames / "cross_view-01.png")      # brighter, same picture
+    assert static_steps(steps, frames) == ["cross_view-01"]
+    scene.rotate(180).save(frames / "cross_view-01.png")                             # a different view
+    assert static_steps(steps, frames) == []
 
 
 async def test_judge_reads_verdicts_and_survives_bad_output(fake_claude):

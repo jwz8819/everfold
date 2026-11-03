@@ -61,7 +61,7 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
     with (out / "verdicts.jsonl").open("w", encoding="utf-8") as f:
         for sid, v in verdicts.items():
             f.write(json.dumps({"id": sid, "verdicts": v}) + "\n")
-    metrics = score(steps, verdicts)
+    metrics = score(steps, verdicts, static_steps(steps, out / "frames"))
     metrics["adapter"] = adapter.name
     metrics["seed"] = seed
     metrics["frames"] = sum(1 for s in steps if any((out / "frames").glob(f"{s.id}.*")))
@@ -75,23 +75,41 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
     return metrics
 
 
-def rescore(out: Path) -> dict:
-    """Recompute the scores of a finished run from its saved verdicts, after the scoring changes.
+async def rescore(out: Path, judge: Judge | None = None) -> dict:
+    """Recompute the scores of a finished run after the scoring changes, from its saved frames and verdicts.
 
-    The steps are rebuilt from the seed (probes are deterministic) and checked against steps.jsonl, so a run
-    made with different probes is refused rather than scored against the wrong truth. Run-time fields such as
-    renderer stats and judge usage are kept."""
+    The steps are rebuilt from the seed (probes are deterministic). If they still match steps.jsonl the saved
+    verdicts are reused. If the probes changed (new facts to check), a judge is required: every saved frame is
+    judged again against the new steps, which costs judge calls but no world-model time. Run-time fields such as
+    renderer stats are kept."""
     old = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
     saved = [json.loads(line) for line in (out / "steps.jsonl").read_text(encoding="utf-8").splitlines()]
     steps = build(old["seed"], list(dict.fromkeys(s["probe"] for s in saved)))
-    if [json.loads(json.dumps(s.to_dict(), ensure_ascii=False)) for s in steps] != saved:
-        raise RuntimeError(f"{out}: probes changed since this run; rescoring would grade the wrong truth")
-    verdicts = {}
-    with (out / "verdicts.jsonl").open(encoding="utf-8") as f:
-        for line in f:
-            row = json.loads(line)
-            verdicts[row["id"]] = row["verdicts"]
-    metrics = {**old, **score(steps, verdicts)}
+    fresh = [json.loads(json.dumps(s.to_dict(), ensure_ascii=False)) for s in steps]
+    same_world = lambda ds: [{k: v for k, v in d.items() if k != "stale"} for d in ds]
+    if same_world(fresh) != same_world(saved):
+        raise RuntimeError(f"{out}: the probes now describe a different world; this run cannot be rescored")
+    verdicts: dict[str, dict[str, str]] = {}
+    if fresh == saved:
+        with (out / "verdicts.jsonl").open(encoding="utf-8") as f:
+            for line in f:
+                row = json.loads(line)
+                verdicts[row["id"]] = row["verdicts"]
+    else:
+        if judge is None:
+            raise RuntimeError(f"{out}: the probes gained facts since this run; rescore with a judge to re-judge it")
+        for s in steps:
+            frame = next(iter(sorted((out / "frames").glob(f"{s.id}.*"))), None)
+            if frame is not None:
+                verdicts[s.id] = await judge.check(s, frame.read_bytes())
+        with (out / "steps.jsonl").open("w", encoding="utf-8") as f:
+            for d in fresh:
+                f.write(json.dumps(d, ensure_ascii=False) + "\n")
+        with (out / "verdicts.jsonl").open("w", encoding="utf-8") as f:
+            for sid, v in verdicts.items():
+                f.write(json.dumps({"id": sid, "verdicts": v}) + "\n")
+        old["judge"] = {"model": judge.model, "usage": judge.usage, "failures": judge.failures, "rejudged": True}
+    metrics = {**old, **score(steps, verdicts, static_steps(steps, out / "frames"))}
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     (out / "report.md").write_text(report(metrics, steps, verdicts), encoding="utf-8")
     return metrics
@@ -104,8 +122,53 @@ def _rate(xs: list[bool]) -> float | None:
     return round(sum(xs) / len(xs), 3) if xs else None
 
 
-def score(steps: list[ProbeStep], verdicts: dict[str, dict[str, str]]) -> dict:
-    """Per-family scores. A fact counts as shown only when the judge says present."""
+# Two frames are the same picture when their normalised 32x18 grey images correlate above this. Measured on seed 42
+# (2026-11-02): ABot frames that ignored a move scored 0.95-0.99 despite flicker and colour drift; frames after a
+# real move (ABot driven, reference renderer) scored 0.50 or less.
+STATIC_CORR = 0.9
+
+
+def _moved(a: ProbeStep, b: ProbeStep) -> bool:
+    return abs(a.view.x - b.view.x) + abs(a.view.y - b.view.y) > 0.5 or a.view.facing != b.view.facing
+
+
+def _thumb(path: Path) -> list[float]:
+    from PIL import Image
+
+    px = list(Image.open(path).convert("L").resize((32, 18)).tobytes())
+    mean = sum(px) / len(px)
+    sd = (sum((p - mean) ** 2 for p in px) / len(px)) ** 0.5 or 1.0
+    return [(p - mean) / sd for p in px]
+
+
+def static_steps(steps: list[ProbeStep], frames: Path) -> list[str]:
+    """Steps whose camera should have moved since the previous step of the family but whose frame did not change.
+    A model that ignores movement would otherwise pass cross-view, revisit and identity by repeating one picture."""
+    def thumb(s):
+        f = next(iter(sorted(frames.glob(f"{s.id}.*"))), None)
+        return _thumb(f) if f else None
+
+    out = []
+    for a, b in zip(steps, steps[1:]):
+        if a.probe != b.probe or not _moved(a, b):
+            continue
+        ta, tb = thumb(a), thumb(b)
+        if ta and tb and sum(x * y for x, y in zip(ta, tb)) / len(ta) > STATIC_CORR:
+            out.append(b.id)
+    return out
+
+
+def _state_ok(s: ProbeStep, v: dict[str, str]) -> bool:
+    """The frame shows the current state and not the stale one."""
+    return all(v.get(m) == "present" for m in s.must) and all(v.get(f.id) == "absent" for f in s.stale)
+
+
+def score(steps: list[ProbeStep], verdicts: dict[str, dict[str, str]], static: list[str] = ()) -> dict:
+    """Per-family scores. A fact counts as shown only when the judge says present.
+
+    State changes (propagation, shrine) are scored per transition: the frame before must show the old state and
+    not the new one, and the frame after the reverse, so a picture that never changes cannot pass. Probes that need
+    the camera to move are not scored (None) when a frame repeated the previous one; `static` lists those steps."""
     by_kind: dict[str, list[bool]] = defaultdict(list)
     must: dict[str, list[bool]] = defaultdict(list)
     for s in steps:
@@ -118,6 +181,13 @@ def score(steps: list[ProbeStep], verdicts: dict[str, dict[str, str]]) -> dict:
             must[s.probe].append(v.get(m) == "present")
 
     idx = {s.id: s for s in steps}
+    frozen = {idx[i].probe for i in static if i in idx}
+
+    def changes(probe: str) -> float | None:
+        fam = [s for s in steps if s.probe == probe]
+        return _rate([_state_ok(a, verdicts[a.id]) and _state_ok(b, verdicts[b.id])
+                      for a, b in zip(fam, fam[1:]) if a.id in verdicts and b.id in verdicts])
+
     # cross-view: did both players' frames show the shared landmark?
     cv = [s for s in steps if s.probe == "cross_view"]
     cross = None
@@ -140,11 +210,14 @@ def score(steps: list[ProbeStep], verdicts: dict[str, dict[str, str]]) -> dict:
     return {
         "fact_recall_by_kind": {k: _rate(v) for k, v in sorted(by_kind.items())},
         "required_facts_by_probe": {k: _rate(v) for k, v in sorted(must.items())},
-        "cross_view_agreement": cross,
-        "revisit_retention": _rate(retained),
-        "propagation": _rate(must.get("propagation", [])),
-        "identity_persistence": _rate(must.get("identity", [])),
-        "shrine_state_change": _rate(must.get("shrine", [])),
+        "cross_view_agreement": None if "cross_view" in frozen else cross,
+        "revisit_retention": None if "revisit" in frozen else _rate(retained),
+        "propagation": changes("propagation"),
+        "identity_persistence": None if "identity" in frozen else _rate(must.get("identity", [])),
+        "shrine_state_change": changes("shrine"),
+        "static_steps": sorted(static),
+        "static_camera_rate": _rate([b.id in static for a, b in zip(steps, steps[1:])
+                                     if a.probe == b.probe and _moved(a, b) and b.id in verdicts]),
         "frames_judged": len(verdicts),
         "steps": len(steps),
     }
@@ -161,7 +234,9 @@ def report(m: dict, steps: list[ProbeStep], verdicts: dict) -> str:
              f"| Revisit retention | {fmt(m['revisit_retention'])} |",
              f"| Cross-player state propagation | {fmt(m['propagation'])} |",
              f"| Identity persistence | {fmt(m['identity_persistence'])} |",
-             f"| Shared structure state change | {fmt(m['shrine_state_change'])} |", ""]
+             f"| Shared structure state change | {fmt(m['shrine_state_change'])} |",
+             f"| Static camera (frame unchanged after a move) | {fmt(m.get('static_camera_rate'))} |", "",
+             "n/a on a pose probe means its camera never moved, so the probe could not be tested.", ""]
     lines += ["## Fact recall by kind", "", "| Kind | Recall |", "|---|---|"]
     lines += [f"| {k} | {fmt(v)} |" for k, v in m["fact_recall_by_kind"].items()]
     lines += ["", "## Per step", ""]
@@ -171,6 +246,12 @@ def report(m: dict, steps: list[ProbeStep], verdicts: dict) -> str:
             lines.append(f"- **{s.id}** {s.label}: no frame")
             continue
         missed = [f.text for f in s.view.facts if v.get(f.id) != "present"]
-        lines.append(f"- **{s.id}** {s.label}: {sum(x == 'present' for x in v.values())}/{len(v)} shown"
+        wrong = [f.text for f in s.stale if v.get(f.id) == "present"]
+        if wrong:
+            missed.append("SHOWN BUT NO LONGER TRUE: " + ", ".join(wrong))
+        if s.id in m.get("static_steps", []):
+            missed.append("STATIC: same picture as the previous step although the camera moved")
+        shown = sum(v.get(f.id) == "present" for f in s.view.facts)
+        lines.append(f"- **{s.id}** {s.label}: {shown}/{len(s.view.facts)} shown"
                      + (f". Missing: {'; '.join(missed)}" if missed else ""))
     return "\n".join(lines) + "\n"

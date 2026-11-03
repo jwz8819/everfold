@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from ..game import Game
 from ..render.prompt import compile_prompt
 from ..render.reference import render_reference
-from ..render.view import ViewSpec, view
+from ..render.view import Fact, ViewSpec, view
 
 
 @dataclass
@@ -30,6 +30,7 @@ class ProbeStep:
     must: list[str] = field(default_factory=list)          # fact ids that must be visible in this frame
     compare_to: int | None = None                          # revisit: index whose facts should reappear
     reference: bytes = b""                                 # top-down render of the true state at capture time
+    stale: list[Fact] = field(default_factory=list)        # false now: the other side of a state change
 
     @property
     def id(self) -> str:
@@ -38,17 +39,29 @@ class ProbeStep:
     def to_dict(self) -> dict:
         return {"id": self.id, "probe": self.probe, "index": self.index, "player": self.player, "label": self.label,
                 "prompt": self.prompt, "must": self.must, "compare_to": self.compare_to, "view": self.view.to_dict(),
-                "facts": [{"id": f.id, "text": f.text, "kind": f.kind} for f in self.view.facts]}
+                "facts": [{"id": f.id, "text": f.text, "kind": f.kind} for f in self.view.facts],
+                "stale": [{"id": f.id, "text": f.text, "kind": f.kind} for f in self.stale]}
+
+    @property
+    def claims(self) -> list[Fact]:
+        """Everything the judge is asked about: the true facts plus the stale ones, unmarked."""
+        return self.view.facts + self.stale
 
 
-def _snap(game: Game, probe: str, steps: list[ProbeStep], pid: str, label: str, must=(), compare_to=None) -> ProbeStep:
+def stale(label: str) -> Fact:
+    """A feature that must NOT be visible: the state before a change, or the one it replaced."""
+    return Fact(f"stale:feature:{label}", f"{label} is visible", "feature")
+
+
+def _snap(game: Game, probe: str, steps: list[ProbeStep], pid: str, label: str, must=(), compare_to=None,
+          gone=()) -> ProbeStep:
     v = view(game, pid)
     ids = {f.id for f in v.facts}
     missing = [m for m in must if m not in ids]
     if missing:
         raise RuntimeError(f"{probe}: expected {missing} in view, scene setup is wrong")
     s = ProbeStep(probe, len(steps), pid, label, v, compile_prompt(v), list(must), compare_to,
-                  render_reference(game, v))
+                  render_reference(game, v), [stale(g) for g in gone])
     steps.append(s)
     return s
 
@@ -123,12 +136,13 @@ def propagation(game: Game) -> list[ProbeStep]:
     steps: list[ProbeStep] = []
     game.teleport(a, tx + 0.5, ty + 1.5, "N")                       # the cutter stands just south
     game.teleport(b, *_free(game, tx, ty + 6), "N")                 # the watcher looks north at it
-    _snap(game, "propagation", steps, b, "the tree before anyone touches it")
+    _snap(game, "propagation", steps, b, "the tree before anyone touches it",
+          gone=["a fresh tree stump", "a crackling campfire"])
     ev = game.interact(a)
     if not ev or ev.get("after") != "x":
         raise RuntimeError("could not fell the tree")
     _snap(game, "propagation", steps, b, f"after {game.players[a].name} fells it",
-          ["feature:a fresh tree stump"])
+          ["feature:a fresh tree stump"], gone=["a crackling campfire"])
     game.players[a].inventory["wood"] = game.players[a].inventory.get("wood", 0) + 1
     lit = False
     for fx, fy in [(tx + dx, ty + dy) for dy in (1, 2, 3, 0) for dx in (-1, 1, -2, 2, 0)]:
@@ -171,7 +185,8 @@ def shrine(game: Game) -> list[ProbeStep]:
     game.teleport(c, *_free(game, sh.x, sh.y + 6), "N")
     game.teleport(a, *_free(game, sh.x - 8, sh.y), "E")
     game.teleport(b, *_free(game, sh.x + 8, sh.y), "W")
-    _snap(game, "shrine", steps, c, "sealed shrine", [f"landmark:{sh.id}", "feature:a sealed stone gate"])
+    _snap(game, "shrine", steps, c, "sealed shrine", [f"landmark:{sh.id}", "feature:a sealed stone gate"],
+          gone=["an open stone gate", "a floating spirit orb"])
     (p1x, p1y), (p2x, p2y) = sh.slots
     game.teleport(a, p1x + 0.5, p1y + 0.5, "N")
     game.teleport(b, p2x + 0.5, p2y + 0.5, "N")
@@ -181,7 +196,8 @@ def shrine(game: Game) -> list[ProbeStep]:
     game.teleport(a, *_free(game, sh.x - 5, sh.y + 4), "E")
     game.teleport(b, *_free(game, sh.x + 5, sh.y + 4), "W")
     _snap(game, "shrine", steps, c, "after two players open it",
-          [f"landmark:{sh.id}", "feature:an open stone gate", "feature:a floating spirit orb"])
+          [f"landmark:{sh.id}", "feature:an open stone gate", "feature:a floating spirit orb"],
+          gone=["a sealed stone gate"])
     return steps
 
 

@@ -1,6 +1,12 @@
-"""ABot-World-0 (fal.ai) as a benchmark renderer, headless over WebRTC.
+"""Realtime world models hosted on fal.ai as benchmark renderers, headless over WebRTC.
 
-ABot keeps its own world. It starts from an image (a built-in preset unless `configure` names one), takes a text
+Three models speak the same fal session protocol (WMA), so one adapter runs them all; MODELS lists each one's app
+id, price and quirks:
+  abot      ABot-World-0 (Alibaba AMAP), third-person, 1280x704 at 16 fps
+  lingbot   LingBot-World-2 (Robbyant), 1664x960 at 48 fps
+  eden      Eden Live 14B Game (VAST), 832x480 at 16 fps, a game model with built-in game rules
+
+Notes below were written against ABot and hold for the others unless MODELS says otherwise. ABot keeps its own world. It starts from an image (a built-in preset unless `configure` names one), takes a text
 description that it may change mid-session, and walks a third-person avatar on movement commands. The benchmark
 sends only text, like the Odyssey adapter, so the two are compared under the same condition. One probe family is
 one session, so revisit and propagation are judged inside one continuous world.
@@ -21,7 +27,7 @@ https://fal.ai/models/fal-ai/abot-world-0/start-session/llms.txt:
   POST wma.fal.run/session {app_id, sdp, type}     -> answer sdp + session_id (one complete offer, no trickle ICE)
   POST wma.fal.run/session/heartbeat {session_id}  every 5 s, or the lease lapses
   data channel "control": JSON messages both ways (configure/prompt/stop out; configured/prompt_applied/... in)
-Requires `uv pip install -e ".[abot]"` and FAL_KEY. Billed per session second ($0.00125/s at the time of writing).
+Requires `uv pip install -e ".[fal]"` and FAL_KEY. Billed per session second; prices are in MODELS.
 """
 from __future__ import annotations
 
@@ -32,17 +38,36 @@ import logging
 import os
 import time
 
+from dataclasses import dataclass, field
+
 from aiohttp import ClientSession, ClientTimeout
 
 from .probes import ProbeStep
 
-log = logging.getLogger("everfold.abot")
+log = logging.getLogger("everfold.fal")
 
 WMA_URL = "https://wma.fal.run"
 RUN_URL = "https://fal.run"
-APP = "fal-ai/abot-world-0"
 IMAGE_APP = "fal-ai/flux/schnell"
-PRICE_PER_S = 0.00125
+
+
+@dataclass(frozen=True)
+class WorldModel:
+    app: str                          # fal app id, as passed to wma(...) in fal's own client
+    price_per_s: float                # USD per session second (fal pages, 2026-11-02)
+    min_s: float = 0.0                # billed minimum per session
+    turn_s: float = 3.5               # seconds of held look per quarter turn, calibrated by eye (see TURN_S)
+    configure: dict = field(default_factory=dict)   # extra configure fields this model needs
+
+
+MODELS = {
+    "abot": WorldModel("fal-ai/abot-world-0", 0.00125),
+    # First person, turns slowly: 4 s of look_right panned about 20 degrees (2026-11-02).
+    "lingbot": WorldModel("fal-ai/lingbot-world-2", 0.00125, turn_s=18.0),
+    # Eden runs one of its built-in games (the default lava crossing kills you for walking forward); a baked HUD
+    # would put score text in every frame the judge reads. About 90 degrees in 4 s of look.
+    "eden": WorldModel("vast/eden-live-14b-game", 0.01, min_s=10.0, turn_s=4.0, configure={"hud": "none"}),
+}
 # Drive condition. Calibrated by eye on 2026-11-02 in the preset world: holding look_right turned the camera
 # ~25 degrees in 1 s, ~55 in 2 s, ~90-100 in 4 s. Walking speed could not be read (the turn faced a wall), so a
 # tile is half a second of "forward", which keeps the longest probe leg (17 tiles) under 9 s.
@@ -109,8 +134,8 @@ def ice_servers(vended: list[dict], make) -> list:
     return out
 
 
-class ABotAdapter:
-    def __init__(self, api_key: str | None = None, settle_s: float = 5.0, start: str = "preset",
+class FalWorldAdapter:
+    def __init__(self, model: str = "abot", api_key: str | None = None, settle_s: float = 5.0, start: str = "preset",
                  drive: bool = False, tile_s: float | None = None, turn_s: float | None = None,
                  wma_url: str = WMA_URL, run_url: str = RUN_URL, heartbeat_s: float = 5.0,
                  ack_timeout_s: float = 30.0):
@@ -118,12 +143,15 @@ class ABotAdapter:
 
         self.key = api_key or falproxy.fal_key()
         if not self.key:
-            raise RuntimeError("Set FAL_KEY to run the ABot adapter.")
+            raise RuntimeError("Set FAL_KEY to run the fal world-model adapter.")
+        if model not in MODELS:
+            raise ValueError(f"model must be one of {', '.join(MODELS)}")
+        self.model, self.spec = model, MODELS[model]
         if start not in ("preset", "image"):
             raise ValueError("start must be 'preset' or 'image'")
-        self.name = f"abot-{start}" + ("-drive" if drive else "")
+        self.name = f"{model}-{start}" + ("-drive" if drive else "")
         self.start, self.settle_s = start, settle_s
-        self.drive, self.tile_s, self.turn_s = drive, tile_s or TILE_S, turn_s or TURN_S
+        self.drive, self.tile_s, self.turn_s = drive, tile_s or TILE_S, turn_s or self.spec.turn_s
         self.pose: tuple[float, float, str] | None = None   # where the avatar is, as far as our commands say
         self.drive_s = 0.0
         self.wma_url, self.run_url = wma_url.rstrip("/"), run_url.rstrip("/")
@@ -144,6 +172,7 @@ class ABotAdapter:
         self.response_s: list[float] = []
         self.ack_s: list[float] = []
         self.session_s = 0.0
+        self.cost = 0.0
         self.sessions = 0
         self.errors: list[str] = []
 
@@ -161,7 +190,7 @@ class ABotAdapter:
     async def _connect(self) -> None:
         from aiortc import RTCConfiguration, RTCIceServer, RTCPeerConnection, RTCSessionDescription
 
-        ice = (await self._post(f"{self.wma_url}/ice", {"app_id": APP}, timeout=15)).get("ice_servers") or []
+        ice = (await self._post(f"{self.wma_url}/ice", {"app_id": self.spec.app}, timeout=15)).get("ice_servers") or []
         self.pc = RTCPeerConnection(RTCConfiguration(iceServers=ice_servers(ice, RTCIceServer)))
         self.pc.addTransceiver("video", direction="recvonly")
         self.channel = self.pc.createDataChannel("control")
@@ -174,7 +203,7 @@ class ABotAdapter:
 
         await self.pc.setLocalDescription(await self.pc.createOffer())    # aiortc gathers ICE fully here
         offer = self.pc.localDescription
-        answer = await self._post(f"{self.wma_url}/session", {"app_id": APP, "sdp": offer.sdp, "type": offer.type},
+        answer = await self._post(f"{self.wma_url}/session", {"app_id": self.spec.app, "sdp": offer.sdp, "type": offer.type},
                                   timeout=120)
         # The runner answers with no candidates and end-of-candidates: it reaches us by checking the candidates
         # in our offer, and a browser learns its address from those checks (peer-reflexive). aioice instead fails
@@ -192,7 +221,7 @@ class ABotAdapter:
         except asyncio.TimeoutError:
             state = f"ice {self.pc.iceConnectionState}, peer {self.pc.connectionState}"
             await self._teardown()
-            raise RuntimeError(f"ABot control channel did not open within 30 s ({state})") from None
+            raise RuntimeError(f"{self.model} control channel did not open within 30 s ({state})") from None
 
     async def _heartbeat(self) -> None:
         strikes = 0
@@ -270,7 +299,9 @@ class ABotAdapter:
             await self.pc.close()
             self.pc = self.channel = None
             if self.opened_at is not None:
-                self.session_s += time.monotonic() - self.opened_at
+                held = time.monotonic() - self.opened_at
+                self.session_s += held
+                self.cost += max(held, self.spec.min_s) * self.spec.price_per_s
                 self.opened_at = None
 
     async def _image_for(self, prompt: str) -> str:
@@ -316,7 +347,7 @@ class ABotAdapter:
             if self.configured:
                 msg = {"type": "prompt", "prompt": prompt}
             else:
-                msg = {"type": "configure", "prompt": prompt}
+                msg = {"type": "configure", "prompt": prompt, **self.spec.configure}
                 if self.start == "image":
                     self.start_image = self.start_image or await self._image_for(prompt)
                     msg["image_url"] = self.start_image
@@ -355,7 +386,7 @@ class ABotAdapter:
         mean = lambda xs: round(sum(xs) / len(xs), 3) if xs else None
         drive = {"drive_seconds": round(self.drive_s, 1), "tile_s": self.tile_s, "turn_s": self.turn_s} \
             if self.drive else {}
-        return {"start": self.start, **drive, "sessions": self.sessions, "session_seconds": round(self.session_s, 1),
-                "est_cost_usd": round(self.session_s * PRICE_PER_S, 4), "mean_ack_seconds": mean(self.ack_s),
+        return {"model": self.model, "start": self.start, **drive, "sessions": self.sessions, "session_seconds": round(self.session_s, 1),
+                "est_cost_usd": round(self.cost, 4), "mean_ack_seconds": mean(self.ack_s),
                 "mean_response_seconds": mean(self.response_s), "responded_steps": len(self.response_s),
                 "errors": self.errors[:10]}

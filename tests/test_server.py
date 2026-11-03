@@ -25,7 +25,10 @@ async def test_two_players_join_see_each_other_and_chat(aiohttp_client):
     await b.send_json({"type": "join", "name": "Briar"})
     await recv_until(b, "welcome")
     await server.tick(0.1)
-    snap = await recv_until(a, "snapshot")
+    for _ in range(20):          # a snapshot queued before Briar joined may arrive first
+        snap = await recv_until(a, "snapshot")
+        if any(p["name"] == "Briar" for p in snap["players"]):
+            break
     assert any(p["name"] == "Briar" for p in snap["players"])
     await a.send_json({"type": "chat", "text": "meet at the shrine?"})
     await asyncio.sleep(0.05)
