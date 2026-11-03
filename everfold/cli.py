@@ -7,6 +7,8 @@
     everfold bench --adapter abot|lingbot|eden [--start image] [--drive]
                                                        a realtime world model on fal, headless (billed per second)
     everfold rescore runs/<run> ...                    re-score finished runs after a scoring change
+    everfold sweep abot-image-drive:20 ... --budget 20 many seeds under a fal budget, resumable
+    everfold aggregate                                 means and 95% intervals across seeds
     everfold label                                     label judged frames by hand in the browser
     everfold agreement                                 judge vs human agreement from those labels
 """
@@ -119,6 +121,34 @@ def cmd_rescore(args) -> None:
     asyncio.run(go())
 
 
+def cmd_sweep(args) -> None:
+    from .bench.judge import Judge
+    from .bench.sweep import parse_plan, schedule, sweep
+    from .content.llm import make_client
+
+    try:
+        plan = parse_plan(args.conditions)
+    except ValueError as e:
+        sys.exit(str(e))
+    client = make_client()
+    if client is None and not args.dry_run:
+        sys.exit("A sweep needs ANTHROPIC_API_KEY: its runs are judged as they finish.")
+    runs = Path(args.out)
+    runs.mkdir(parents=True, exist_ok=True)
+    print(f"{len(schedule(plan))} runs planned for tag {args.tag!r}, budget ${args.budget:.2f}")
+    result = asyncio.run(sweep(plan, args.budget, args.tag, runs, lambda: Judge(client, args.judge_model),
+                               settle_s=args.settle, dry_run=args.dry_run, log=lambda m: print(m, flush=True)))
+    print(json.dumps(result, indent=2))
+
+
+def cmd_aggregate(args) -> None:
+    from .bench.sweep import aggregate, aggregate_report
+
+    report = aggregate_report(aggregate(Path(args.runs)))
+    (Path(args.runs) / "aggregate.md").write_text(report, encoding="utf-8")
+    print(report)
+
+
 def cmd_label(args) -> None:
     from aiohttp import web
 
@@ -177,6 +207,20 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("runs", nargs="+", help="run folders, e.g. runs/abot-preset-seed42")
     r.add_argument("--judge-model", default="claude-opus-5-5", help="used only if the probes gained facts")
     r.set_defaults(fn=cmd_rescore)
+
+    sw = sub.add_parser("sweep", help="run fal conditions over many seeds under a budget (resumable)")
+    sw.add_argument("conditions", nargs="+", help="e.g. abot-image-drive:20 lingbot-image:8")
+    sw.add_argument("--budget", type=float, required=True, help="USD cap on fal spend for this tag")
+    sw.add_argument("--tag", default="sweep1", help="ledger tag; reuse it to resume under the same budget")
+    sw.add_argument("--settle", type=float, default=5.0)
+    sw.add_argument("--judge-model", default="claude-opus-5-5")
+    sw.add_argument("--out", default="runs")
+    sw.add_argument("--dry-run", action="store_true", help="print what would run and the predicted cost")
+    sw.set_defaults(fn=cmd_sweep)
+
+    agg = sub.add_parser("aggregate", help="per-condition means and 95% intervals across seeds")
+    agg.add_argument("--runs", default="runs")
+    agg.set_defaults(fn=cmd_aggregate)
 
     lb = sub.add_parser("label", help="label judged frames by hand to calibrate the judge")
     lb.add_argument("--runs", default="runs")

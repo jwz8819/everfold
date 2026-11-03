@@ -49,6 +49,7 @@ log = logging.getLogger("everfold.fal")
 WMA_URL = "https://wma.fal.run"
 RUN_URL = "https://fal.run"
 IMAGE_APP = "fal-ai/flux/schnell"
+IMAGE_PRICE = 0.003      # per start image, rounded up from FLUX schnell's per-megapixel price
 
 
 @dataclass(frozen=True)
@@ -305,6 +306,7 @@ class FalWorldAdapter:
                 self.opened_at = None
 
     async def _image_for(self, prompt: str) -> str:
+        self.cost += IMAGE_PRICE
         out = await self._post(f"{self.run_url}/{IMAGE_APP}",
                                {"prompt": prompt, "image_size": "landscape_16_9", "num_images": 1}, timeout=120)
         return out["images"][0]["url"]
