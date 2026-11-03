@@ -92,6 +92,16 @@ generators, multiplayer-native models) on the same multiplayer properties agains
 ## Before any number goes in the paper
 
 - Human-label at least 100 frames and report judge agreement. Without that the judge numbers are not evidence.
+  - Done 2026-11-03 for seed 42: 98 frames (all 7 runs), 609 claims, one labeller (the author, labeller id
+    human1). Judge vs human: agreement 0.81, Cohen's kappa 0.66 over three classes, 0.74 on present vs not.
+    Stale facts (state-change checks) 0.98 agreement, present-kappa 1.00; landmarks 0.81; people 0.62; ground 0.47.
+    The judge is stricter than the human (44 human-yes/judge-no vs 13 the other way), mostly on ground type and on
+    other people's clothing, so fact recall by kind is a lower bound. Re-scoring all seven runs with the human
+    labels instead of the judge gives identical probe scores on every probe. Atmosphere kappa (0.27) is low only
+    because almost every frame is daytime (95% raw agreement); report raw agreement there.
+  - Still needed: a second, independent labeller on an overlapping subset (30-50 frames) for human-human agreement;
+    the first labeller knows the study design. Any change to the judge prompt must be checked on labels it was not
+    tuned on.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.
