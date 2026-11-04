@@ -109,6 +109,7 @@ async def test_rescore_rejudges_when_only_the_claims_changed(tmp_path, fake_clau
     rows = [json.loads(l) for l in (tmp_path / "steps.jsonl").read_text().splitlines()]
     for r in rows:      # an older run judged the full wording
         r["facts"] = [f | {"text": f["text"].replace("a tree stump", "a fresh tree stump")} for f in r["facts"]]
+        r["view"]["facts"] = r["facts"]
     (tmp_path / "steps.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     j = Judge(fake_claude(*[all_present] * 3))
     m = await rescore(tmp_path, j)

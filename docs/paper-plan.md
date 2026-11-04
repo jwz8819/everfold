@@ -102,6 +102,17 @@ generators, multiplayer-native models) on the same multiplayer properties agains
   - Still needed: a second, independent labeller on an overlapping subset (30-50 frames) for human-human agreement;
     the first labeller knows the study design. Any change to the judge prompt must be checked on labels it was not
     tuned on.
+- Ceiling: the FLUX oracle (`flux-oracle`) draws every frame fresh from the true-state prompt. Over 20 seeds with
+  the original claim wording (v1) it scored cross-view 95%, revisit 89%, propagation 30%, identity 20%, shrine 0%.
+- Claim wording v2 (2026-11-03, commit c3744f7). Three changes, justified only by the oracle's v1 failures:
+  - Propagation: a tree stump, not a fresh tree stump. Clearly drawn, weathered stumps were rejected.
+  - Shrine: the landmark is only "a stone shrine platform". The compound "two glowing plates and a sealed gate"
+    failed whenever any part was missing, and the gate and plates are already separate facts.
+  - People: checked by outfit (colour and garment) alone, not the full signature.
+
+  Prompts are unchanged, so every saved frame was re-judged with no new renders. v1 verdicts are kept in each run's
+  `v1/` folder. Report both versions. The human labels (human1) were collected against the v1 wording, so the
+  judge-human agreement figures above are v1; v2 claims need their own agreement check.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.

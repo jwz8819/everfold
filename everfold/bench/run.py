@@ -88,7 +88,8 @@ async def rescore(out: Path, judge: Judge | None = None) -> dict:
     fresh = [json.loads(json.dumps(s.to_dict(), ensure_ascii=False)) for s in steps]
     # Facts and stale facts are the judge's claims about the world, not the world: when only they changed, the saved
     # frames still show the same steps and are judged again.
-    same_world = lambda ds: [{k: v for k, v in d.items() if k not in ("facts", "stale")} for d in ds]
+    same_world = lambda ds: [{k: v for k, v in d.items() if k not in ("facts", "stale")}
+                             | {"view": {k: v for k, v in d["view"].items() if k != "facts"}} for d in ds]
     if same_world(fresh) != same_world(saved):
         raise RuntimeError(f"{out}: the probes now describe a different world; this run cannot be rescored")
     verdicts: dict[str, dict[str, str]] = {}
