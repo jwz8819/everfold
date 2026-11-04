@@ -71,3 +71,15 @@ async def test_run_judges_the_pair_and_rescore_backfills_it(tmp_path, fake_claud
     j = Judge(fake_claude(dict(pair, same="same")))
     m2 = await rescore(tmp_path, j)
     assert len(j.client.calls) == 1 and m2["cross_view_consistency"] == 1.0
+
+
+def test_drive_sensitivity_conditions_scale_tile_and_turn_time(tmp_path):
+    assert S.parse_plan(["abot-image-drive-x0.5:5", "abot-image-drive-x1.5:5"])
+    for bad in ("abot-image-x0.5:5", "abot-image-2p-x1.5:5", "abot-image-drive-x3:5"):
+        try:
+            S.parse_plan([bad])
+            raise AssertionError(bad)
+        except ValueError:
+            pass
+    assert S.drive_scale("abot-image-drive-x1.5") == 1.5 and S.drive_scale("abot-image-drive") == 1.0
+    assert S.predicted_cost(tmp_path, "abot-image-drive-x1.5") > S.predicted_cost(tmp_path, "abot-image-drive-x0.5")

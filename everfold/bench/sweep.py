@@ -24,9 +24,15 @@ PROBE_KEYS = ("cross_view_agreement", "cross_view_consistency", "revisit_retenti
 # Cost of one run before any of the condition has been run (seed 42, 2026-11-02), padded by MARGIN when predicting.
 FALLBACK_COST = {"abot": 0.35, "lingbot": 0.70, "eden": 2.70, "flux": 0.05}
 MARGIN = 1.15
-# -drive walks one session's avatar between poses; -2p gives each player their own session (cross_view only: it
-# is the one probe with two viewers, see PerPlayerAdapter)
-CONDITION = re.compile(r"^(?:(abot|lingbot|eden)-(preset|image)(-drive|-2p)?|flux-oracle)$")
+# -drive walks one session's avatar between poses; -drive-x0.5 / -x1.5 scale its seconds per tile and per quarter
+# turn (both calibrated by eye) for the sensitivity check; -2p gives each player their own session (cross_view only:
+# it is the one probe with two viewers, see PerPlayerAdapter)
+CONDITION = re.compile(r"^(?:(abot|lingbot|eden)-(preset|image)(-drive(?:-x(?:0\.5|1\.5))?|-2p)?|flux-oracle)$")
+
+
+def drive_scale(condition: str) -> float:
+    m = re.search(r"-x([\d.]+)$", condition)
+    return float(m.group(1)) if m else 1.0
 
 
 def parse_plan(items: list[str]) -> list[tuple[str, int]]:
@@ -58,7 +64,13 @@ def make_adapter(condition: str, settle_s: float):
     if mode == "-2p":
         from .adapters import PerPlayerAdapter
         return PerPlayerAdapter(lambda: FalWorldAdapter(model, settle_s=settle_s, start=start), condition)
-    return FalWorldAdapter(model, settle_s=settle_s, start=start, drive=mode == "-drive")
+    if mode and mode.startswith("-drive"):
+        from .fal_adapter import MODELS, TILE_S
+
+        k = drive_scale(condition)
+        return FalWorldAdapter(model, settle_s=settle_s, start=start, drive=True, tile_s=TILE_S * k,
+                               turn_s=MODELS[model].turn_s * k)
+    return FalWorldAdapter(model, settle_s=settle_s, start=start)
 
 
 def probes_for(condition: str) -> list[str] | None:
@@ -79,7 +91,8 @@ def ledger_total(runs: Path, tag: str) -> float:
 def predicted_cost(runs: Path, condition: str) -> float:
     costs = [m["renderer"]["est_cost_usd"] for m in _metrics(runs, condition) if m.get("renderer")]
     # a -2p run renders only the two cross_view steps, about a third of a full run's session time
-    base = max(costs) if costs else FALLBACK_COST[condition.split("-")[0]] * (0.35 if condition.endswith("-2p") else 1)
+    base = max(costs) if costs else (FALLBACK_COST[condition.split("-")[0]] * max(drive_scale(condition), 1.0)
+                                     * (0.35 if condition.endswith("-2p") else 1))
     return round(base * MARGIN, 4)
 
 

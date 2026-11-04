@@ -18,7 +18,7 @@ def test_plan_and_seed_major_schedule():
 
 class CheapAdapter(A.ReferenceAdapter):
     """Stands in for a fal model: the reference renderer, with a cost."""
-    def __init__(self, model, settle_s=5.0, start="preset", drive=False):
+    def __init__(self, model, settle_s=5.0, start="preset", drive=False, **drive_times):
         self.name, self.cost = f"{model}-{start}" + ("-drive" if drive else ""), 0.0
 
     async def frame(self, step):
