@@ -19,12 +19,14 @@ from collections import defaultdict
 from pathlib import Path
 
 SEEDS = [42] + [s for s in range(1, 200) if s != 42]
-PROBE_KEYS = ("cross_view_agreement", "revisit_retention", "propagation", "identity_persistence",
+PROBE_KEYS = ("cross_view_agreement", "cross_view_consistency", "revisit_retention", "propagation", "identity_persistence",
               "shrine_state_change", "static_camera_rate")
 # Cost of one run before any of the condition has been run (seed 42, 2026-11-02), padded by MARGIN when predicting.
 FALLBACK_COST = {"abot": 0.35, "lingbot": 0.70, "eden": 2.70, "flux": 0.05}
 MARGIN = 1.15
-CONDITION = re.compile(r"^(?:(abot|lingbot|eden)-(preset|image)(-drive)?|flux-oracle)$")
+# -drive walks one session's avatar between poses; -2p gives each player their own session (cross_view only: it
+# is the one probe with two viewers, see PerPlayerAdapter)
+CONDITION = re.compile(r"^(?:(abot|lingbot|eden)-(preset|image)(-drive|-2p)?|flux-oracle)$")
 
 
 def parse_plan(items: list[str]) -> list[tuple[str, int]]:
@@ -52,8 +54,15 @@ def make_adapter(condition: str, settle_s: float):
         return FluxOracleAdapter()
     from .fal_adapter import FalWorldAdapter
 
-    model, start, drive = CONDITION.match(condition).groups()
-    return FalWorldAdapter(model, settle_s=settle_s, start=start, drive=bool(drive))
+    model, start, mode = CONDITION.match(condition).groups()
+    if mode == "-2p":
+        from .adapters import PerPlayerAdapter
+        return PerPlayerAdapter(lambda: FalWorldAdapter(model, settle_s=settle_s, start=start), condition)
+    return FalWorldAdapter(model, settle_s=settle_s, start=start, drive=mode == "-drive")
+
+
+def probes_for(condition: str) -> list[str] | None:
+    return ["cross_view"] if condition.endswith("-2p") else None
 
 
 def run_dir(runs: Path, condition: str, seed: int) -> Path:
@@ -69,7 +78,8 @@ def ledger_total(runs: Path, tag: str) -> float:
 
 def predicted_cost(runs: Path, condition: str) -> float:
     costs = [m["renderer"]["est_cost_usd"] for m in _metrics(runs, condition) if m.get("renderer")]
-    base = max(costs) if costs else FALLBACK_COST[condition.split("-")[0]]
+    # a -2p run renders only the two cross_view steps, about a third of a full run's session time
+    base = max(costs) if costs else FALLBACK_COST[condition.split("-")[0]] * (0.35 if condition.endswith("-2p") else 1)
     return round(base * MARGIN, 4)
 
 
@@ -95,7 +105,7 @@ async def sweep(plan: list[tuple[str, int]], budget: float, tag: str, runs: Path
         t0 = time.monotonic()
         log(f"{condition} seed {seed}: running (spent ${spent:.2f} of ${budget:.2f})")
         try:
-            await run(seed, adapter, out, judge_factory())
+            await run(seed, adapter, out, judge_factory(), probes_for(condition))
         except Exception as e:          # noqa: BLE001 - one failed run must not end an overnight sweep
             log(f"{condition} seed {seed}: FAILED {type(e).__name__}: {e}")
             await adapter.aclose()
@@ -186,7 +196,7 @@ def aggregate_report(a: dict) -> str:
         lo, hi = x["ci95"]
         return f"{x['mean']:.0%} [{lo:.0%}, {hi:.0%}] n={x['n']}"
 
-    names = {"cross_view_agreement": "Cross-view", "revisit_retention": "Revisit", "propagation": "Propagation",
+    names = {"cross_view_agreement": "Cross-view", "cross_view_consistency": "Same tower", "revisit_retention": "Revisit", "propagation": "Propagation",
              "identity_persistence": "Identity", "shrine_state_change": "Shrine", "static_camera_rate": "Static camera"}
     lines = ["# Everfold results across seeds", "",
              "Mean over seeds with a 95% bootstrap interval (seed is the unit); n = seeds where the probe could be "

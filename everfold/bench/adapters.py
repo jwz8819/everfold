@@ -37,6 +37,59 @@ class ReferenceAdapter:
         return None
 
 
+class PerPlayerAdapter:
+    """One renderer session per player, the way a game would run one world-model stream per connected player.
+
+    `make()` builds a fresh inner adapter. Within a probe family each player's steps go to that player's own
+    session, opened on their first step; all of them stay open until the family ends, as connected players
+    would. Only cross_view has two viewers; every other probe is rendered for one watcher, so per-player there
+    is the same as one session."""
+
+    def __init__(self, make, name: str):
+        self.make, self.name = make, name
+        self.live: dict[str, object] = {}
+        self.all: list = []
+
+    async def open(self, probe: str) -> None:
+        self.live = {}
+
+    async def frame(self, step: ProbeStep) -> tuple[bytes | None, float]:
+        a = self.live.get(step.player)
+        if a is None:
+            a = self.live[step.player] = self.make()
+            self.all.append(a)
+            await a.open(step.probe)
+        return await a.frame(step)
+
+    async def close(self) -> None:
+        for a in self.live.values():
+            await a.close()
+        self.live = {}
+
+    async def aclose(self) -> None:
+        for a in self.all:
+            if hasattr(a, "aclose"):
+                await a.aclose()
+
+    @property
+    def cost(self) -> float:
+        return sum(getattr(a, "cost", 0.0) for a in self.all)
+
+    def stats(self) -> dict:
+        parts = [a.stats() for a in self.all if hasattr(a, "stats")]
+        out = dict(parts[0]) if parts else {}
+        for k in ("est_cost_usd", "session_seconds", "sessions", "responded_steps", "images"):
+            if any(k in p for p in parts):
+                out[k] = round(sum(p.get(k, 0) for p in parts), 4)
+        for k in ("mean_ack_seconds", "mean_response_seconds", "mean_image_seconds"):
+            xs = [p[k] for p in parts if p.get(k) is not None]
+            if any(k in p for p in parts):
+                out[k] = round(sum(xs) / len(xs), 3) if xs else None
+        out["errors"] = [e for p in parts for e in p.get("errors", [])][:10]
+        out["players"] = len(parts)
+        return out
+
+
 class PromptsAdapter:
     name = "prompts"
 

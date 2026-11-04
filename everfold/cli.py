@@ -81,10 +81,13 @@ def cmd_bench(args) -> None:
     elif args.adapter in ("abot", "lingbot", "eden"):
         from .bench.fal_adapter import FalWorldAdapter
         try:
-            adapter = FalWorldAdapter(args.adapter, settle_s=args.settle, start=args.start, drive=args.drive,
-                                      tile_s=args.tile_s, turn_s=args.turn_s)
+            make = lambda: FalWorldAdapter(args.adapter, settle_s=args.settle, start=args.start, drive=args.drive,
+                                           tile_s=args.tile_s, turn_s=args.turn_s)
+            adapter = make()
         except RuntimeError as e:
             sys.exit(str(e))
+        if args.per_player:
+            adapter = A.PerPlayerAdapter(make, f"{args.adapter}-{args.start}-2p")
     elif args.adapter == "flux-oracle":
         from .bench.oracle_adapter import FluxOracleAdapter
         try:
@@ -123,7 +126,7 @@ def cmd_rescore(args) -> None:
                 m = await rescore(Path(d), judge)
             except (OSError, RuntimeError, KeyError, ValueError) as e:
                 sys.exit(f"{d}: {e}")
-            keys = ("cross_view_agreement", "revisit_retention", "propagation", "identity_persistence",
+            keys = ("cross_view_agreement", "cross_view_consistency", "revisit_retention", "propagation", "identity_persistence",
                     "shrine_state_change", "static_camera_rate")
             print(d, json.dumps({k: m.get(k) for k in keys}))
 
@@ -222,6 +225,8 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--start", default="preset", choices=["preset", "image"],
                    help="fal models: start from the model's own world, or an image generated from the first prompt")
     b.add_argument("--drive", action="store_true", help="fal models: walk the avatar between probe poses")
+    b.add_argument("--per-player", action="store_true",
+                   help="fal models: one session per player (use with --probes cross_view; other probes have one viewer)")
     b.add_argument("--tile-s", type=float, default=None, help="fal models with --drive: seconds of forward per tile")
     b.add_argument("--turn-s", type=float, default=None, help="fal models with --drive: seconds of look per 90 degrees")
     b.add_argument("--settle", type=float, default=5.0, help="seconds to let a streaming model respond per step")

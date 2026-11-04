@@ -22,6 +22,35 @@ def _ext(img: bytes) -> str:
     return media_type(img).split("/")[1].replace("jpeg", "jpg")
 
 
+def _frame_path(out: Path, sid: str) -> Path | None:
+    return next(iter(sorted((out / "frames").glob(f"{sid}.*"))), None)
+
+
+async def judge_pair(steps: list[ProbeStep], out: Path, judge: Judge) -> dict | None:
+    """Show the judge both cross-view frames together: is the shared landmark recognisably the same structure?
+    Presence alone cannot tell two players apart who each see a different tower. Saved to pair.json."""
+    cv = [s for s in steps if s.probe == "cross_view"]
+    frames = [_frame_path(out, s.id) for s in cv]
+    if len(cv) != 2 or None in frames:
+        return None
+    shared = [f for f in cv[0].view.facts if f.id in set(cv[0].must) & set(cv[1].must)]
+    if not shared:
+        return None
+    thing = shared[0].text.removesuffix(" is visible")
+    pair = {"steps": [s.id for s in cv], "thing": thing,
+            **await judge.same_object(frames[0].read_bytes(), frames[1].read_bytes(), thing)}
+    (out / "pair.json").write_text(json.dumps(pair), encoding="utf-8")
+    return pair
+
+
+def consistency(pair: dict | None, metrics: dict) -> float | None:
+    """1 when both players' frames show the shared landmark and it is the same structure. Not scored (None) when
+    there is no pair or the cross-view camera never moved (cross-view agreement is n/a then too)."""
+    if pair is None or metrics.get("cross_view_agreement") is None:
+        return None
+    return 1.0 if pair["a"] == "present" and pair["b"] == "present" and pair["same"] == "same" else 0.0
+
+
 async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probes: list[str] | None = None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     (out / "reference").mkdir(exist_ok=True)
@@ -62,6 +91,8 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
         for sid, v in verdicts.items():
             f.write(json.dumps({"id": sid, "verdicts": v}) + "\n")
     metrics = score(steps, verdicts, static_steps(steps, out / "frames"))
+    pair = await judge_pair(steps, out, judge) if judge is not None else None
+    metrics["cross_view_consistency"] = consistency(pair, metrics)
     metrics["adapter"] = adapter.name
     metrics["seed"] = seed
     metrics["frames"] = sum(1 for s in steps if any((out / "frames").glob(f"{s.id}.*")))
@@ -102,7 +133,7 @@ async def rescore(out: Path, judge: Judge | None = None) -> dict:
         if judge is None:
             raise RuntimeError(f"{out}: the judge's claims changed since this run; rescore with a judge to re-judge it")
         for s in steps:
-            frame = next(iter(sorted((out / "frames").glob(f"{s.id}.*"))), None)
+            frame = _frame_path(out, s.id)
             if frame is not None:
                 verdicts[s.id] = await judge.check(s, frame.read_bytes())
         with (out / "steps.jsonl").open("w", encoding="utf-8") as f:
@@ -113,6 +144,11 @@ async def rescore(out: Path, judge: Judge | None = None) -> dict:
                 f.write(json.dumps({"id": sid, "verdicts": v}) + "\n")
         old["judge"] = {"model": judge.model, "usage": judge.usage, "failures": judge.failures, "rejudged": True}
     metrics = {**old, **score(steps, verdicts, static_steps(steps, out / "frames"))}
+    pair_file = out / "pair.json"
+    pair = json.loads(pair_file.read_text(encoding="utf-8")) if pair_file.exists() else None
+    if pair is None and judge is not None:
+        pair = await judge_pair(steps, out, judge)
+    metrics["cross_view_consistency"] = consistency(pair, metrics)
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     (out / "report.md").write_text(report(metrics, steps, verdicts), encoding="utf-8")
     return metrics
@@ -234,6 +270,7 @@ def report(m: dict, steps: list[ProbeStep], verdicts: dict) -> str:
         lines += ["Renderer: " + ", ".join(f"{k} {v}" for k, v in m["renderer"].items() if v not in (None, [])), ""]
     lines += ["| Measure | Score |", "|---|---|",
              f"| Cross-view agreement | {fmt(m['cross_view_agreement'])} |",
+             f"| Cross-view consistency (same structure in both views) | {fmt(m.get('cross_view_consistency'))} |",
              f"| Revisit retention | {fmt(m['revisit_retention'])} |",
              f"| Cross-player state propagation | {fmt(m['propagation'])} |",
              f"| Identity persistence | {fmt(m['identity_persistence'])} |",
