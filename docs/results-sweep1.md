@@ -27,3 +27,19 @@ Mean over seeds with a 95% bootstrap interval (seed is the unit); n = seeds wher
 | lingbot-image | 100% | 34% | 64% | 57% | 46% |
 | lingbot-image-drive | 98% | 27% | 57% | 38% | 45% |
 | reference | 86% | 0% | 71% | 22% | 0% |
+
+## Cost and latency (mean over seeds)
+
+Player-hour: what one player's open session costs for an hour (fal list price per second x 3600). Ack: prompt sent to model confirms it. Response: prompt sent to the picture visibly changing (mean absolute pixel change of 12 or more). Responded: share of steps where the picture changed at all. Errors: moderation refusals and prompts never confirmed, per run.
+
+| Condition | $/player-hour | $/run | Session s/run | Ack s | Response s | Frame s | Responded | Errors/run |
+|---|---|---|---|---|---|---|---|---|
+| abot-image | $4.50 | 0.27 | 204 | 1.9 | 4.7 | 6.2 | 43% | 2.5 |
+| abot-image-drive | $4.50 | 0.39 | 304 | 1.8 | 1.8 | 4.1 | 74% | 2.7 |
+| abot-preset | $4.50 | 0.18 | 146 | 0.7 | 4.7 | 5.7 | 7% | 0.0 |
+| eden-image | $36.00 | 1.60 | 160 | 1.4 | 2.8 | 6.1 | 21% | 0.0 |
+| eden-image-drive | $36.00 | 2.61 | 261 | 1.3 | 3.4 | 13.1 | 7% | 0.0 |
+| flux-oracle | $0.003/image | 0.04 | n/a | n/a | n/a | 1.5 | n/a | 0.0 |
+| lingbot-image | $4.50 | 0.30 | 232 | 3.9 | 3.0 | 7.9 | 54% | 2.0 |
+| lingbot-image-drive | $4.50 | 0.69 | 538 | 3.9 | 1.6 | 6.3 | 62% | 1.8 |
+| reference | n/a | n/a | n/a | n/a | n/a | 0.0 | n/a | n/a |

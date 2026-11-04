@@ -141,6 +141,16 @@ generators, multiplayer-native models) on the same multiplayer properties agains
       each other (41–42 of 46), so probe scores are as reliable as a second human rater.
     - These labels have no timestamps, so time per frame can't be reported; rows saved from now on carry
       `saved_at`.
+- Refused prompts (checked 2026-11-03). fal's realtime models refused or never confirmed 56 of 714 prompt
+  updates (7.8%), about 2 per ABot/LingBot run. Many came with "content moderation failed".
+  - Every probe family is affected, including 9 ABot-drive propagation steps.
+  - Rescoring only runs where the probe had no refused prompt leaves every conclusion the same: ABot-drive
+    propagation 0% (13 runs), shrine 0% everywhere, cross-view 0% (ABot) and 11% (LingBot).
+  - Report both, as-run (what a deployment gets) and refusal-free (capability), and give the refusal rate in
+    the cost table.
+  - Triggers are only weakly identifiable: the blacksmith NPC description, "small hand drum", and generated
+    place names such as "Zeldun" (close to a trademark). Prompts stay fixed for comparability; note it as a
+    limitation of hosted models.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.
