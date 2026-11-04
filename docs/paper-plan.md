@@ -113,6 +113,18 @@ generators, multiplayer-native models) on the same multiplayer properties agains
   Prompts are unchanged, so every saved frame was re-judged with no new renders. v1 verdicts are kept in each run's
   `v1/` folder. Report both versions. The human labels (human1) were collected against the v1 wording, so the
   judge-human agreement figures above are v1; v2 claims need their own agreement check.
+  - Done 2026-11-03 (labels-v2/, labeller human1). 50 new frames, none from round 1. Half come from identity,
+    propagation and shrine steps, across the five swept conditions.
+    - Overall: 319 claims, agreement 0.79, kappa 0.60 over three classes, 0.66 on present vs not (v1: 0.74).
+    - The changed claims agree well: tree stump 7/8, shrine platform 6/6, gate/orb/plate 13/16, stale facts
+      16/16 (kappa 1.00).
+    - People are the weak kind: other people present-kappa 0.43, self 0.54. Disagreements run both ways
+      (15 human-yes/judge-no vs 12 the reverse), so the judge is noisy on outfit colour and garment, not biased.
+    - Probe-level check: of the 49 sampled frames carrying probe requirements, judge and human give the same
+      pass/fail on 44. All 7 cross-view and all 6 shrine frames match. The 5 that differ split 3 to 2.
+    - Report person-based scores (identity, the person share of revisit) as moderate-reliability. A second
+      labeller is still needed for human-human agreement on people: the outfit colours themselves may be
+      ambiguous (violet vs plum, padded tunic vs quilted vest).
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.
