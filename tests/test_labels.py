@@ -4,7 +4,7 @@ import pytest
 
 from everfold.bench import adapters as A
 from everfold.bench.judge import Judge
-from everfold.bench.labels import LabelApp, agreement, draw_sample, kappa
+from everfold.bench.labels import LabelApp, agreement, agreement_report, draw_sample, kappa
 from everfold.bench.run import run
 
 
@@ -95,4 +95,14 @@ async def test_agreement_compares_human_and_judge(runs, tmp_path):
     a = agreement(runs, labels)
     assert a["frames"] == 2 and a["agreement"] == 1.0          # the fake judge also said present to everything
     assert "stale" in a["by_kind"] or all(k != "stale" for k in a["by_kind"])
-    assert a["confusion"] == {"human present / judge present": a["claims"]}
+    assert a["confusion"] == {"tester present / judge present": a["claims"]}
+
+    # a second labeller on the same sample, who says absent to everything on one frame only
+    second = tmp_path / "labels-2"
+    second.mkdir()
+    (second / "sample.json").write_text((labels / "sample.json").read_text())
+    other = [dict(rows[0], labeler="second", answers={k: "absent" for k in rows[0]["answers"]})]
+    (second / "labels.jsonl").write_text("".join(json.dumps(r) + "\n" for r in other))
+    b = agreement(runs, second, against=labels)
+    assert b["frames"] == 1 and b["raters"] == ["second", "tester"] and b["agreement"] == 0.0
+    assert "# Agreement: second vs tester" in agreement_report(b)

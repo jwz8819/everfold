@@ -107,9 +107,14 @@ def kappa(pairs: list[tuple[str, str]]) -> float | None:
     return 1.0 if pe == 1 else round((po - pe) / (1 - pe), 3)
 
 
-def agreement(runs: Path, labels_dir: Path) -> dict:
+def agreement(runs: Path, labels_dir: Path, against: Path | None = None) -> dict:
+    """Agreement of the labels in `labels_dir` with the judge, or with another labeller's labels in `against`
+    (then only frames both have labelled count)."""
     labels = load_labels(labels_dir / "labels.jsonl")
-    pairs: list[tuple[str, str, str, str]] = []          # (human, judge, kind, run)
+    other = load_labels(against / "labels.jsonl") if against else None
+    if other is not None:
+        labels = {k: v for k, v in labels.items() if k in other}
+    pairs: list[tuple[str, str, str, str]] = []          # (this labeller, judge or other labeller, kind, run)
     cache: dict[str, tuple[dict, dict]] = {}
     for row in labels.values():
         run = runs / row["run"]
@@ -120,7 +125,8 @@ def agreement(runs: Path, labels_dir: Path) -> dict:
         kinds = {f["id"]: ("stale" if f in step.get("stale", []) else f["kind"])
                  for f in step["facts"] + step.get("stale", [])}
         for fid, human in row["answers"].items():
-            judge = verdicts.get(row["id"], {}).get(fid)
+            judge = (other[f"{row['run']}/{row['id']}"]["answers"] if other is not None
+                     else verdicts.get(row["id"], {})).get(fid)
             if judge in ANSWERS and human in ANSWERS:
                 pairs.append((human, judge, kinds.get(fid, "?"), row["run"]))
 
@@ -135,15 +141,18 @@ def agreement(runs: Path, labels_dir: Path) -> dict:
         by_kind[p[2]].append(p)
         by_run[p[3]].append(p)
     confusion = Counter((h, j) for h, j, *_ in pairs)
-    return {"frames": len(labels), **summary(pairs),
+    a, b = (next(iter(labels.values()))["labeler"] if labels else "human",
+            next(iter(other.values()))["labeler"] if other else "judge")
+    return {"frames": len(labels), "raters": [a, b], **summary(pairs),
             "by_kind": {k: summary(v) for k, v in sorted(by_kind.items())},
             "by_run": {k: summary(v) for k, v in sorted(by_run.items())},
-            "confusion": {f"human {h} / judge {j}": c for (h, j), c in sorted(confusion.items())}}
+            "confusion": {f"{a} {h} / {b} {j}": c for (h, j), c in sorted(confusion.items())}}
 
 
 def agreement_report(a: dict) -> str:
     f = lambda x: "n/a" if x is None else f"{x:.2f}"
-    lines = ["# Judge vs human agreement", "",
+    a_name, b_name = a.get("raters", ["human", "judge"])
+    lines = [f"# Agreement: {a_name} vs {b_name}", "",
              f"{a['frames']} frames, {a['claims']} claims. Agreement {f(a['agreement'])}, Cohen's kappa "
              f"{f(a['kappa'])} over present/absent/unclear, {f(a['present_kappa'])} on present vs not (the "
              "distinction the scores use).", "",

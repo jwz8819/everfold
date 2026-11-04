@@ -12,6 +12,7 @@
     everfold aggregate                                 means and 95% intervals across seeds
     everfold label                                     label judged frames by hand in the browser
     everfold agreement                                 judge vs human agreement from those labels
+    everfold agreement --labels A --against B          two labellers on the same frames
 """
 from __future__ import annotations
 
@@ -176,11 +177,13 @@ def cmd_label(args) -> None:
 def cmd_agreement(args) -> None:
     from .bench.labels import agreement, agreement_report
 
-    a = agreement(Path(args.runs), Path(args.labels))
+    against = Path(args.against) if args.against else None
+    a = agreement(Path(args.runs), Path(args.labels), against)
     if not a["claims"]:
-        sys.exit("No labels yet. Run `everfold label` first.")
+        sys.exit("No labels yet (or none on the same frames). Run `everfold label` first.")
     report = agreement_report(a)
-    (Path(args.labels) / "agreement.md").write_text(report, encoding="utf-8")
+    name = f"agreement-vs-{against.name}.md" if against else "agreement.md"
+    (Path(args.labels) / name).write_text(report, encoding="utf-8")
     print(report)
 
 
@@ -246,6 +249,7 @@ def main(argv: list[str] | None = None) -> None:
     ag = sub.add_parser("agreement", help="compare human labels with the judge")
     ag.add_argument("--runs", default="runs")
     ag.add_argument("--labels", default="labels")
+    ag.add_argument("--against", help="another labeller's folder: compare the two people instead of person vs judge")
     ag.set_defaults(fn=cmd_agreement)
     args = p.parse_args(argv)
     args.fn(args)
