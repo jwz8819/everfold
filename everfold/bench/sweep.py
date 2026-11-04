@@ -1,7 +1,7 @@
 """Multi-seed runs under a budget, and the across-seed numbers that go in the paper.
 
 A condition is a fal model, a start and optionally drive, written the way run folders are named:
-`abot-image-drive`, `lingbot-image`. `sweep` runs each condition on its first N seeds (42, then 1, 2, 3, ...),
+`abot-image-drive`, `lingbot-image`; or `flux-oracle`, the ceiling (oracle_adapter.py). `sweep` runs each condition on its first N seeds (42, then 1, 2, 3, ...),
 seed by seed across conditions so a sweep cut short by the budget is still balanced. It resumes: a run folder
 with metrics.json is never run again. Every finished run's cost goes into runs/ledger.jsonl under the sweep's tag,
 and a run is not started if the tag's total plus that run's predicted cost would pass the budget.
@@ -22,9 +22,9 @@ SEEDS = [42] + [s for s in range(1, 200) if s != 42]
 PROBE_KEYS = ("cross_view_agreement", "revisit_retention", "propagation", "identity_persistence",
               "shrine_state_change", "static_camera_rate")
 # Cost of one run before any of the condition has been run (seed 42, 2026-11-02), padded by MARGIN when predicting.
-FALLBACK_COST = {"abot": 0.35, "lingbot": 0.70, "eden": 2.70}
+FALLBACK_COST = {"abot": 0.35, "lingbot": 0.70, "eden": 2.70, "flux": 0.05}
 MARGIN = 1.15
-CONDITION = re.compile(r"^(abot|lingbot|eden)-(preset|image)(-drive)?$")
+CONDITION = re.compile(r"^(?:(abot|lingbot|eden)-(preset|image)(-drive)?|flux-oracle)$")
 
 
 def parse_plan(items: list[str]) -> list[tuple[str, int]]:
@@ -46,6 +46,16 @@ def schedule(plan: list[tuple[str, int]]) -> list[tuple[str, int]]:
     return out
 
 
+def make_adapter(condition: str, settle_s: float):
+    if condition == "flux-oracle":
+        from .oracle_adapter import FluxOracleAdapter
+        return FluxOracleAdapter()
+    from .fal_adapter import FalWorldAdapter
+
+    model, start, drive = CONDITION.match(condition).groups()
+    return FalWorldAdapter(model, settle_s=settle_s, start=start, drive=bool(drive))
+
+
 def run_dir(runs: Path, condition: str, seed: int) -> Path:
     return runs / f"{condition}-seed{seed}"
 
@@ -65,7 +75,6 @@ def predicted_cost(runs: Path, condition: str) -> float:
 
 async def sweep(plan: list[tuple[str, int]], budget: float, tag: str, runs: Path, judge_factory,
                 settle_s: float = 5.0, log=print, dry_run: bool = False) -> dict:
-    from .fal_adapter import FalWorldAdapter
     from .run import run
 
     todo = [(c, s) for c, s in schedule(plan) if not (run_dir(runs, c, s) / "metrics.json").exists()]
@@ -81,8 +90,7 @@ async def sweep(plan: list[tuple[str, int]], budget: float, tag: str, runs: Path
             spent += need
             done.append(f"{condition}-seed{seed}")
             continue
-        model, start, drive = CONDITION.match(condition).groups()
-        adapter = FalWorldAdapter(model, settle_s=settle_s, start=start, drive=bool(drive))
+        adapter = make_adapter(condition, settle_s)
         out = run_dir(runs, condition, seed)
         t0 = time.monotonic()
         log(f"{condition} seed {seed}: running (spent ${spent:.2f} of ${budget:.2f})")

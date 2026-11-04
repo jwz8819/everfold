@@ -6,6 +6,7 @@
     everfold bench --adapter folder --frames DIR       judge frames captured by hand from any model
     everfold bench --adapter abot|lingbot|eden [--start image] [--drive]
                                                        a realtime world model on fal, headless (billed per second)
+    everfold bench --adapter flux-oracle               the ceiling: every frame drawn fresh from the true state
     everfold rescore runs/<run> ...                    re-score finished runs after a scoring change
     everfold sweep abot-image-drive:20 ... --budget 20 many seeds under a fal budget, resumable
     everfold aggregate                                 means and 95% intervals across seeds
@@ -80,6 +81,12 @@ def cmd_bench(args) -> None:
         try:
             adapter = FalWorldAdapter(args.adapter, settle_s=args.settle, start=args.start, drive=args.drive,
                                       tile_s=args.tile_s, turn_s=args.turn_s)
+        except RuntimeError as e:
+            sys.exit(str(e))
+    elif args.adapter == "flux-oracle":
+        from .bench.oracle_adapter import FluxOracleAdapter
+        try:
+            adapter = FluxOracleAdapter()
         except RuntimeError as e:
             sys.exit(str(e))
     elif args.adapter == "folder":
@@ -189,7 +196,8 @@ def main(argv: list[str] | None = None) -> None:
     s.set_defaults(fn=cmd_serve)
     b = sub.add_parser("bench", help="run the multiplayer world-model probes")
     b.add_argument("--seed", type=int, default=42)
-    b.add_argument("--adapter", default="reference", choices=["reference", "prompts", "folder", "odyssey", "abot", "lingbot", "eden"])
+    b.add_argument("--adapter", default="reference", choices=["reference", "prompts", "folder", "odyssey", "abot", "lingbot", "eden",
+                                                         "flux-oracle"])
     b.add_argument("--start", default="preset", choices=["preset", "image"],
                    help="fal models: start from the model's own world, or an image generated from the first prompt")
     b.add_argument("--drive", action="store_true", help="fal models: walk the avatar between probe poses")
