@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -228,7 +229,8 @@ class LabelApp:
         if set(answers) != {f"c{k}" for k in range(len(ids))} or any(a not in ANSWERS for a in answers.values()):
             raise web.HTTPBadRequest(text="answer every claim with present, absent or unclear")
         row = {"run": item["run"], "id": item["id"], "labeler": self.labeler,
-               "answers": {ids[int(key[1:])]: a for key, a in answers.items()}}
+               "answers": {ids[int(key[1:])]: a for key, a in answers.items()},
+               "saved_at": round(time.time())}          # so time per frame can be reported
         with self.labels_file.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         return web.json_response({"ok": True})

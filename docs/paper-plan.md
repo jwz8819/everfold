@@ -120,11 +120,27 @@ generators, multiplayer-native models) on the same multiplayer properties agains
       16/16 (kappa 1.00).
     - People are the weak kind: other people present-kappa 0.43, self 0.54. Disagreements run both ways
       (15 human-yes/judge-no vs 12 the reverse), so the judge is noisy on outfit colour and garment, not biased.
-    - Probe-level check: of the 49 sampled frames carrying probe requirements, judge and human give the same
-      pass/fail on 44. All 7 cross-view and all 6 shrine frames match. The 5 that differ split 3 to 2.
-    - Report person-based scores (identity, the person share of revisit) as moderate-reliability. A second
-      labeller is still needed for human-human agreement on people: the outfit colours themselves may be
-      ambiguous (violet vs plum, padded tunic vs quilted vest).
+    - Probe-level check: of the 46 sampled frames carrying probe requirements, judge and human give the same
+      pass/fail on 41. All 7 cross-view and all 6 shrine frames match. The 5 that differ split 3 to 2.
+  - Second labeller (labels-v2-human2/, labeller human2), same 50 frames, labelled independently from the
+    README brief. The brief doesn't mention the study's purpose, the judge or human1's answers.
+
+    | Pair | Agreement | Kappa (3 classes) | Present kappa | People present kappa | Probe pass/fail same |
+    |---|---|---|---|---|---|
+    | human1 vs human2 | 0.91 | 0.81 | 0.82 | 0.71 | 41/46 |
+    | human1 vs judge | 0.79 | 0.60 | 0.66 | 0.53 | 41/46 |
+    | human2 vs judge | 0.78 | 0.59 | 0.65 | 0.58 | 42/46 |
+
+    - The judge agrees with each person about equally (0.65–0.66), but less than the two people agree with
+      each other (0.82). So the judge is the noisiest rater on single claims.
+    - On people specifically, humans reach 0.71. The outfit claims are fairly clear to people, and the
+      judge's 0.53–0.58 is the judge's own weakness, not ambiguous wording.
+    - Grounds and atmosphere are weak for the judge (ground present-kappa 0.32–0.44), so ground recall
+      should not be headlined.
+    - At the level the scores use, probe pass/fail, the judge matches each human as often as the humans match
+      each other (41–42 of 46), so probe scores are as reliable as a second human rater.
+    - These labels have no timestamps, so time per frame can't be reported; rows saved from now on carry
+      `saved_at`.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.
