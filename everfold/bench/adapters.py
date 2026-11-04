@@ -55,6 +55,9 @@ class GreyboxAdapter:
     async def close(self) -> None:
         return None
 
+    def stats(self) -> dict:
+        return {"model": "greybox", "est_cost_usd": 0.0}
+
 
 class PerPlayerAdapter:
     """One renderer session per player, the way a game would run one world-model stream per connected player.

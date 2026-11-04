@@ -98,3 +98,7 @@ async def test_adapter_restyles_one_clip_per_family_and_samples_steps(aiohttp_se
 def test_conditions():
     assert S.parse_plan(["greybox:3", "lucy-greybox:2", "lucy-greybox-2p:2"])
     assert isinstance(S.make_adapter("greybox", 5.0), GreyboxAdapter)
+
+
+def test_greybox_reports_zero_cost_for_the_sweep_ledger():
+    assert GreyboxAdapter().stats()["est_cost_usd"] == 0.0
