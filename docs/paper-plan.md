@@ -183,6 +183,19 @@ generators, multiplayer-native models) on the same multiplayer properties agains
     each time (same tower 0%). Each session starts from its own FLUX image of that player's view, so the
     worlds disagree from the first frame. That is the point: per-player renderers share nothing unless the
     engine supplies it.
+  - 20 seeds each (tag twoplayer1, $2.96, 0 failures):
+
+    | Condition | Cross-view (tower shown) | Same tower |
+    |---|---|---|
+    | ABot, one session per player | 75% [55, 90] | 5% [0, 15] |
+    | LingBot, one session per player | 80% [60, 95] | 0% |
+    | ABot, one session walked between players | 0% | 0% |
+    | LingBot, one session walked between players | 8% [0, 25] | 0% |
+    | FLUX oracle | 95% [85, 100] | 10% [0, 25] |
+
+    Per-player sessions show each player the landmark (they draw from their own start image), but almost
+    never the same landmark. The single walked session loses it. Neither architecture gives two players one
+    world.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.
