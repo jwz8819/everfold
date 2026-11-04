@@ -121,7 +121,7 @@ class Judge:
 
     async def same_object(self, a: bytes, b: bytes, thing: str) -> dict[str, str]:
         """Two players' frames of one shared landmark: does each show it, and is it recognisably the same one?
-        Returns {"a": present|absent|unclear, "b": ..., "same": same|different|unclear}."""
+        Returns {"a": present|absent|unclear, "b": ..., "same": same|different|unclear, "why": the judge's reason}."""
         import anthropic
 
         try:
@@ -132,6 +132,7 @@ class Judge:
                 json.JSONDecodeError) as e:
             log.warning("pair judge failed: %s", e)
             self.failures += 1
-            return {"a": "unclear", "b": "unclear", "same": "unclear"}
+            return {"a": "unclear", "b": "unclear", "same": "unclear", "why": f"judge failed: {e}"}
         ok = lambda k, allowed: out.get(k) if out.get(k) in allowed else "unclear"
-        return {"a": ok("a", ANSWERS), "b": ok("b", ANSWERS), "same": ok("same", ("same", "different", "unclear"))}
+        return {"a": ok("a", ANSWERS), "b": ok("b", ANSWERS), "same": ok("same", ("same", "different", "unclear")),
+                "why": str(out.get("why", ""))[:500]}

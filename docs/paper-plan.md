@@ -167,6 +167,22 @@ generators, multiplayer-native models) on the same multiplayer properties agains
   - Method caveat: invented names were found by a heuristic (capitalised non-dictionary words, checked
     against the context), then classified by hand by Claude. A person should confirm the 30-word list
     before publication. Names that are also English words ("Wren", "Love") cannot be caught this way.
+- Two-player condition and cross-view consistency (2026-11-03, commit 54aef19).
+  - Condition `<model>-image-2p`: one fal session per player (PerPlayerAdapter), as a game running one
+    world-model stream per player would. It renders only cross_view, the one probe with two viewers.
+    About $0.10 per seed.
+  - New score, "same tower" (cross_view_consistency). A pair judge sees both players' frames and the
+    landmark description, and decides whether each shows it and whether it is recognisably the same
+    structure. Presence alone passes two players who each see a different tower.
+  - Pair-judge controls on the 20 oracle towers:
+    - Each tower vs a mirrored, cropped copy of itself: judged same 20/20.
+    - The two independently drawn oracle frames: same 2/20.
+    - So the oracle is a ceiling for presence (95%) but not for consistency (10%). Independent frames don't
+      share a world.
+  - Seed 42: ABot-2p and LingBot-2p show the tower to both players (cross-view 100%), but a different tower
+    each time (same tower 0%). Each session starts from its own FLUX image of that player's view, so the
+    worlds disagree from the first frame. That is the point: per-player renderers share nothing unless the
+    engine supplies it.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.
