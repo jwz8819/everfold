@@ -218,10 +218,21 @@ generators, multiplayer-native models) on the same multiplayer properties agains
   - So neither game can carry the probes. Eden belongs in the taxonomy as a game-locked model: a text or
     image start conditions only the first frames, and the game decides what persists. Report seeds 42, 1, 2
     and this calibration qualitatively. Don't buy more Eden seeds.
-- Drive-speed sensitivity (tag sens1, cut short when fal credit ran out): ABot drive with tile and turn
-  seconds x0.5 and x1.5, 2 seeds each so far (42, 1). Every probe is 0% at both scales except one x0.5
-  cross-view presence (no same tower), the same as the base speed on those seeds. Needs 3 more seeds per
-  scale.
+- Drive-speed sensitivity (tag sens1, 2026-11-04, $3.48). ABot drive with the seconds per tile and per
+  quarter turn (calibrated by eye) scaled x0.5 and x1.5, on the same 5 seeds as the base speed:
+
+  | Drive speed | Seeds | Cross-view | Same tower | Revisit | Propagation | Identity | Shrine | Static camera | $/run |
+  |---|---|---|---|---|---|---|---|---|---|
+  | x0.5 | 5 | 20% [0%, 60%] | 0% [0%, 0%] | 20% [0%, 60%] | 0% [0%, 0%] | 27% [13%, 33%] | 0% [0%, 0%] | 0% [0%, 0%] | 0.28 |
+  | x1 (calibrated) | 5 | 0% [0%, 0%] | 0% [0%, 0%] | 14% [4%, 24%] | 0% [0%, 0%] | 13% [0%, 27%] | 0% [0%, 0%] | 0% [0%, 0%] | 0.38 |
+  | x1.5 | 5 | 0% [0%, 0%] | 0% [0%, 0%] | 5% [0%, 15%] | 0% [0%, 0%] | 20% [0%, 47%] | 0% [0%, 0%] | 0% [0%, 0%] | 0.41 |
+
+  - State changes (propagation, shrine) and same tower are 0% at every speed, so the headline results do not
+    depend on the calibration.
+  - The pose probes move within noise (overlapping intervals). Shorter walks (x0.5) score slightly higher on
+    cross-view, revisit and identity, consistent with less time to drift. That is worth one sentence, not a
+    claim.
+  - One x0.5 run failed to connect (WebRTC timeout) and was rerun.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.
