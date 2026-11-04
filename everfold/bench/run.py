@@ -43,6 +43,17 @@ async def judge_pair(steps: list[ProbeStep], out: Path, judge: Judge) -> dict | 
     return pair
 
 
+def apply_pair(pair: dict | None, metrics: dict) -> None:
+    """Add cross-view consistency to the metrics. A second view the pair judge calls the same viewpoint (same
+    background, the landmark at the same angle, things merely added in front) means the camera never really
+    moved, so cross-view is not scored at all, exactly as for a frozen camera. Pixel similarity misses this: a
+    model that drops props in the foreground changes the frame without moving the camera."""
+    if pair is not None and pair.get("viewpoint") == "same":
+        metrics["cross_view_agreement"] = None
+    metrics["cross_view_same_viewpoint"] = None if pair is None else pair.get("viewpoint") == "same"
+    metrics["cross_view_consistency"] = consistency(pair, metrics)
+
+
 def consistency(pair: dict | None, metrics: dict) -> float | None:
     """1 when both players' frames show the shared landmark and it is the same structure. Not scored (None) when
     there is no pair or the cross-view camera never moved (cross-view agreement is n/a then too)."""
@@ -92,7 +103,7 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
             f.write(json.dumps({"id": sid, "verdicts": v}) + "\n")
     metrics = score(steps, verdicts, static_steps(steps, out / "frames"))
     pair = await judge_pair(steps, out, judge) if judge is not None else None
-    metrics["cross_view_consistency"] = consistency(pair, metrics)
+    apply_pair(pair, metrics)
     metrics["adapter"] = adapter.name
     metrics["seed"] = seed
     metrics["frames"] = sum(1 for s in steps if any((out / "frames").glob(f"{s.id}.*")))
@@ -146,9 +157,9 @@ async def rescore(out: Path, judge: Judge | None = None) -> dict:
     metrics = {**old, **score(steps, verdicts, static_steps(steps, out / "frames"))}
     pair_file = out / "pair.json"
     pair = json.loads(pair_file.read_text(encoding="utf-8")) if pair_file.exists() else None
-    if pair is None and judge is not None:
+    if (pair is None or "viewpoint" not in pair) and judge is not None:
         pair = await judge_pair(steps, out, judge)
-    metrics["cross_view_consistency"] = consistency(pair, metrics)
+    apply_pair(pair, metrics)
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     (out / "report.md").write_text(report(metrics, steps, verdicts), encoding="utf-8")
     return metrics

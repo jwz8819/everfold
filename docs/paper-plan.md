@@ -196,6 +196,20 @@ generators, multiplayer-native models) on the same multiplayer properties agains
     Per-player sessions show each player the landmark (they draw from their own start image), but almost
     never the same landmark. The single walked session loses it. Neither architecture gives two players one
     world.
+  - Viewpoint check (2026-11-04). Eden's "100% same tower" came from a camera that never left: its second
+    view showed the same background with props (chests, stone blocks) added in front. Whole-frame pixel
+    similarity missed it because the foreground changed. The pair judge now also answers whether B was
+    really taken from elsewhere. If it says "same spot", cross-view and same tower are n/a, as for a frozen
+    camera, for every model.
+    - Validation: the image-only runs, whose cameras never move, are judged same spot on 15 of 16 pairs;
+      two-player pairs are judged different on 40 of 40.
+    - Eden drive: same spot on 2 of 3 seeds. Its one valid pair kept the tower (n=1, inconclusive).
+    - All pairs were re-judged with the new question. Re-asking moved some calls: LingBot-2p same tower went
+      from 0/20 to 2/20 and the oracle from 2/20 to 3/19. That is judge noise within the intervals; report it.
+- Drive-speed sensitivity (tag sens1, cut short when fal credit ran out): ABot drive with tile and turn
+  seconds x0.5 and x1.5, 2 seeds each so far (42, 1). Every probe is 0% at both scales except one x0.5
+  cross-view presence (no same tower), the same as the base speed on those seeds. Needs 3 more seeds per
+  scale.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.

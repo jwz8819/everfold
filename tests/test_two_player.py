@@ -83,3 +83,14 @@ def test_drive_sensitivity_conditions_scale_tile_and_turn_time(tmp_path):
             pass
     assert S.drive_scale("abot-image-drive-x1.5") == 1.5 and S.drive_scale("abot-image-drive") == 1.0
     assert S.predicted_cost(tmp_path, "abot-image-drive-x1.5") > S.predicted_cost(tmp_path, "abot-image-drive-x0.5")
+
+
+def test_a_second_view_from_the_same_spot_leaves_cross_view_unscored():
+    from everfold.bench.run import apply_pair
+
+    m = {"cross_view_agreement": 1.0}
+    apply_pair({"a": "present", "b": "present", "same": "same", "viewpoint": "same"}, m)
+    assert m == {"cross_view_agreement": None, "cross_view_same_viewpoint": True, "cross_view_consistency": None}
+    m = {"cross_view_agreement": 1.0}
+    apply_pair({"a": "present", "b": "present", "same": "same", "viewpoint": "different"}, m)
+    assert m["cross_view_agreement"] == 1.0 and m["cross_view_consistency"] == 1.0

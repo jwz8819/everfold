@@ -45,6 +45,11 @@ structure. You get image A (one player's view), image B (the other's), and a des
   colours and distinctive details, allowing for the different angle and distance? same, different, or unclear.
   Answer different if a player who saw one would not recognise the other as the same thing. If either image
   does not show it, answer unclear.
+- viewpoint: the two players stand in clearly different places, about a quarter of the way around the
+  structure from each other. Is B clearly taken from a different place than A (different surroundings, the
+  structure seen from another side or distance)? Answer same if B is essentially A's view from the same spot,
+  with the same background and the structure at the same angle, even if objects in front were added, removed
+  or moved. Otherwise different, or unclear.
 Judge only what is visible, not the art style. Do not be generous."""
 
 PAIR_SCHEMA = {
@@ -52,8 +57,9 @@ PAIR_SCHEMA = {
     "properties": {"a": {"type": "string", "enum": ["present", "absent", "unclear"]},
                    "b": {"type": "string", "enum": ["present", "absent", "unclear"]},
                    "same": {"type": "string", "enum": ["same", "different", "unclear"]},
+                   "viewpoint": {"type": "string", "enum": ["same", "different", "unclear"]},
                    "why": {"type": "string"}},
-    "required": ["a", "b", "same", "why"],
+    "required": ["a", "b", "same", "viewpoint", "why"],
     "additionalProperties": False,
 }
 
@@ -121,7 +127,8 @@ class Judge:
 
     async def same_object(self, a: bytes, b: bytes, thing: str) -> dict[str, str]:
         """Two players' frames of one shared landmark: does each show it, and is it recognisably the same one?
-        Returns {"a": present|absent|unclear, "b": ..., "same": same|different|unclear, "why": the judge's reason}."""
+        Returns {"a": present|absent|unclear, "b": ..., "same": same|different|unclear,
+        "viewpoint": same|different|unclear (did the second view really come from elsewhere?), "why": reason}."""
         import anthropic
 
         try:
@@ -132,7 +139,9 @@ class Judge:
                 json.JSONDecodeError) as e:
             log.warning("pair judge failed: %s", e)
             self.failures += 1
-            return {"a": "unclear", "b": "unclear", "same": "unclear", "why": f"judge failed: {e}"}
+            return {"a": "unclear", "b": "unclear", "same": "unclear", "viewpoint": "unclear",
+                    "why": f"judge failed: {e}"}
         ok = lambda k, allowed: out.get(k) if out.get(k) in allowed else "unclear"
-        return {"a": ok("a", ANSWERS), "b": ok("b", ANSWERS), "same": ok("same", ("same", "different", "unclear")),
-                "why": str(out.get("why", ""))[:500]}
+        three = ("same", "different", "unclear")
+        return {"a": ok("a", ANSWERS), "b": ok("b", ANSWERS), "same": ok("same", three),
+                "viewpoint": ok("viewpoint", three), "why": str(out.get("why", ""))[:500]}
