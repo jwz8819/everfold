@@ -22,12 +22,12 @@ SEEDS = [42] + [s for s in range(1, 200) if s != 42]
 PROBE_KEYS = ("cross_view_agreement", "cross_view_consistency", "revisit_retention", "propagation", "identity_persistence",
               "shrine_state_change", "static_camera_rate")
 # Cost of one run before any of the condition has been run (seed 42, 2026-11-02), padded by MARGIN when predicting.
-FALLBACK_COST = {"abot": 0.35, "lingbot": 0.70, "eden": 2.70, "flux": 0.05}
+FALLBACK_COST = {"abot": 0.35, "lingbot": 0.70, "eden": 2.70, "flux": 0.05, "greybox": 0.0, "lucy": 0.55}
 MARGIN = 1.15
 # -drive walks one session's avatar between poses; -drive-x0.5 / -x1.5 scale its seconds per tile and per quarter
 # turn (both calibrated by eye) for the sensitivity check; -2p gives each player their own session (cross_view only:
 # it is the one probe with two viewers, see PerPlayerAdapter)
-CONDITION = re.compile(r"^(?:(abot|lingbot|eden)-(preset|image)(-drive(?:-x(?:0\.5|1\.5))?|-2p)?|flux-oracle)$")
+CONDITION = re.compile(r"^(?:(abot|lingbot|eden)-(preset|image)(-drive(?:-x(?:0\.5|1\.5))?|-2p)?|flux-oracle|greybox|lucy-greybox(?:-2p)?)$")
 
 
 def drive_scale(condition: str) -> float:
@@ -55,6 +55,12 @@ def schedule(plan: list[tuple[str, int]]) -> list[tuple[str, int]]:
 
 
 def make_adapter(condition: str, settle_s: float):
+    if condition == "greybox":
+        from .adapters import GreyboxAdapter
+        return GreyboxAdapter()
+    if condition.startswith("lucy-greybox"):
+        from .lucy_adapter import LucyAdapter
+        return LucyAdapter(per_player=condition.endswith("-2p"))
     if condition == "flux-oracle":
         from .oracle_adapter import FluxOracleAdapter
         return FluxOracleAdapter()

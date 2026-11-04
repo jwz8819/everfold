@@ -7,6 +7,8 @@
     everfold bench --adapter abot|lingbot|eden [--start image] [--drive]
                                                        a realtime world model on fal, headless (billed per second)
     everfold bench --adapter flux-oracle               the ceiling: every frame drawn fresh from the true state
+    everfold bench --adapter greybox                   the engine's own 3D render of the true state (free)
+    everfold bench --adapter lucy [--per-player]       Decart Lucy restyles the greybox on fal (billed per second)
     everfold rescore runs/<run> ...                    re-score finished runs after a scoring change
     everfold sweep abot-image-drive:20 ... --budget 20 many seeds under a fal budget, resumable
     everfold aggregate                                 means and 95% intervals across seeds
@@ -70,6 +72,14 @@ def cmd_bench(args) -> None:
 
     if args.adapter == "reference":
         adapter = A.ReferenceAdapter()
+    elif args.adapter == "greybox":
+        adapter = A.GreyboxAdapter()
+    elif args.adapter == "lucy":
+        from .bench.lucy_adapter import LucyAdapter
+        try:
+            adapter = LucyAdapter(per_player=args.per_player)
+        except RuntimeError as e:
+            sys.exit(str(e))
     elif args.adapter == "prompts":
         adapter = A.PromptsAdapter()
     elif args.adapter == "odyssey":
@@ -220,8 +230,8 @@ def main(argv: list[str] | None = None) -> None:
     s.set_defaults(fn=cmd_serve)
     b = sub.add_parser("bench", help="run the multiplayer world-model probes")
     b.add_argument("--seed", type=int, default=42)
-    b.add_argument("--adapter", default="reference", choices=["reference", "prompts", "folder", "odyssey", "abot", "lingbot", "eden",
-                                                         "flux-oracle"])
+    b.add_argument("--adapter", default="reference", choices=["reference", "greybox", "lucy", "prompts", "folder", "odyssey",
+                                                         "abot", "lingbot", "eden", "flux-oracle"])
     b.add_argument("--start", default="preset", choices=["preset", "image"],
                    help="fal models: start from the model's own world, or an image generated from the first prompt")
     b.add_argument("--drive", action="store_true", help="fal models: walk the avatar between probe poses")

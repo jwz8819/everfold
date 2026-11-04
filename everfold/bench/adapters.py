@@ -5,6 +5,7 @@ revisit and propagation are tested inside a single continuous session, the way a
 
 Built in:
   reference  top-down control render of the true state (pipeline check, not a world model)
+  greybox    the engine's 3D render of the true state from the player's camera
   prompts    no images; writes prompts so a person can run a model by hand
   folder     reads frames a person captured by hand (web demos, research previews) from <frames>/<step id>.png
 """
@@ -32,6 +33,24 @@ class ReferenceAdapter:
 
     async def frame(self, step: ProbeStep) -> tuple[bytes | None, float]:
         return step.reference or None, 0.0
+
+    async def close(self) -> None:
+        return None
+
+
+class GreyboxAdapter:
+    """The engine's own 3D render of the true state (render/greybox.py): the ceiling for a renderer that draws
+    from one shared world, and the input a restyling model is given."""
+    name = "greybox"
+
+    async def open(self, probe: str) -> None:
+        return None
+
+    async def frame(self, step: ProbeStep) -> tuple[bytes | None, float]:
+        from ..render.greybox import FACING_HEADING, outfit_color, png, render
+
+        v = step.view
+        return png(render(step.scene, v.x, v.y, FACING_HEADING[v.facing], outfit_color(v.signature))), 0.0
 
     async def close(self) -> None:
         return None

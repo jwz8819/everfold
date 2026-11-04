@@ -79,6 +79,8 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
 
     verdicts: dict[str, dict[str, str]] = {}
     latency: dict[str, float] = {}
+    if hasattr(adapter, "prepare"):          # batch renderers (Lucy) make all their frames up front
+        await adapter.prepare(steps)
     current = None
     for s in steps:
         if s.probe != current:

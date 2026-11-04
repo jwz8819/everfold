@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 from ..game import Game
 from ..render.prompt import compile_prompt
+from ..render.greybox import Scene, capture
 from ..render.reference import render_reference
 from ..render.view import FEATURE_CLAIMS, Fact, ViewSpec, view
 
@@ -31,6 +32,7 @@ class ProbeStep:
     compare_to: int | None = None                          # revisit: index whose facts should reappear
     reference: bytes = b""                                 # top-down render of the true state at capture time
     stale: list[Fact] = field(default_factory=list)        # false now: the other side of a state change
+    scene: Scene | None = None                             # the world at capture time, for the 3D greybox
 
     @property
     def id(self) -> str:
@@ -61,7 +63,7 @@ def _snap(game: Game, probe: str, steps: list[ProbeStep], pid: str, label: str, 
     if missing:
         raise RuntimeError(f"{probe}: expected {missing} in view, scene setup is wrong")
     s = ProbeStep(probe, len(steps), pid, label, v, compile_prompt(v), list(must), compare_to,
-                  render_reference(game, v), [stale(g) for g in gone])
+                  render_reference(game, v), [stale(g) for g in gone], capture(game, v.x, v.y, pid))
     steps.append(s)
     return s
 
