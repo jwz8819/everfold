@@ -10,6 +10,7 @@
     everfold rescore runs/<run> ...                    re-score finished runs after a scoring change
     everfold sweep abot-image-drive:20 ... --budget 20 many seeds under a fal budget, resumable
     everfold aggregate                                 means and 95% intervals across seeds
+    everfold quests                                    quest grounding: how often the quest writer invents things
     everfold label                                     label judged frames by hand in the browser
     everfold agreement                                 judge vs human agreement from those labels
     everfold agreement --labels A --against B          two labellers on the same frames
@@ -157,6 +158,20 @@ def cmd_aggregate(args) -> None:
     print(report)
 
 
+def cmd_quests(args) -> None:
+    from .bench.quest_grounding import batch
+    from .content.llm import LLM, make_client
+
+    client = make_client()
+    if client is None:
+        sys.exit("Quest grounding needs ANTHROPIC_API_KEY: the writer under test is Claude.")
+    seeds = list(range(1, args.worlds + 1))
+    s = asyncio.run(batch(seeds, LLM(client, model=args.model, effort=args.effort, timeout=60.0), Path(args.out),
+                          args.givers, args.personas))
+    print((Path(args.out) / "report.md").read_text(encoding="utf-8"))
+    print(json.dumps(s["writer"], indent=2))
+
+
 def cmd_label(args) -> None:
     from aiohttp import web
 
@@ -235,6 +250,16 @@ def main(argv: list[str] | None = None) -> None:
     agg = sub.add_parser("aggregate", help="per-condition means and 95% intervals across seeds")
     agg.add_argument("--runs", default="runs")
     agg.set_defaults(fn=cmd_aggregate)
+
+    qg = sub.add_parser("quests", help="quest grounding: how often the quest writer invents things")
+    qg.add_argument("--worlds", type=int, default=20, help="world seeds 1..N")
+    qg.add_argument("--givers", type=int, default=2, help="villagers asked for a quest per world")
+    qg.add_argument("--model", default="claude-opus-5-5")
+    qg.add_argument("--effort", default="low", help="the game's own setting is low")
+    qg.add_argument("--personas", default="claude", choices=["claude", "scripted"],
+                    help="who writes the quest-givers' personalities: Claude as in play, or the fixed scripted ones")
+    qg.add_argument("--out", default="runs/quests")
+    qg.set_defaults(fn=cmd_quests)
 
     lb = sub.add_parser("label", help="label judged frames by hand to calibrate the judge")
     lb.add_argument("--runs", default="runs")

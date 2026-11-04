@@ -151,6 +151,22 @@ generators, multiplayer-native models) on the same multiplayer properties agains
   - Triggers are only weakly identifiable: the blacksmith NPC description, "small hand drum", and generated
     place names such as "Zeldun" (close to a trademark). Prompts stay fixed for comparability; note it as a
     limitation of hosted models.
+- Quest grounding (contribution 4), run 2026-11-03 with `everfold quests`. 20 worlds, up to 4 quest-givers
+  each (one per role), Claude Opus 5.5 at the game's own low effort. Results are in docs/results-quests.md.
+  - Steps: 0 of 200 proposed steps pointed at a place, person or item that does not exist (scripted-persona
+    control: 0 of 215). With the ids listed and items enumerated in the schema, structural invention does
+    not occur. The validator stays as a guard.
+  - Text, Claude-written personalities (as in play): no invented places or people. One vague "Gran"; one
+    real villager ("Rari") named from outside the area the writer was shown.
+  - Invented items: 28 of 57 quests (49%) ask for an item variety that does not exist ("glowcap moss",
+    "silverbell", "honeyclover"), which the step quietly maps to the generic herb or mushroom. All 28 trace
+    to the villager's own want, written by the persona generator: invention enters one stage earlier and
+    propagates. A fix to test is to give the persona writer the item list too.
+  - Variety: with the fixed scripted personalities, 34 distinct titles in 60 quests, one repeated 19 times;
+    with Claude personalities, 57 of 57 distinct. Grounding and variety trade off through the persona stage.
+  - Method caveat: invented names were found by a heuristic (capitalised non-dictionary words, checked
+    against the context), then classified by hand by Claude. A person should confirm the 30-word list
+    before publication. Names that are also English words ("Wren", "Love") cannot be caught this way.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.
