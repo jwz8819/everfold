@@ -9,11 +9,23 @@ import math
 from dataclasses import asdict, dataclass, field
 
 from .. import config as C
+from ..entities import outfit
 from ..game import FACING, Game
 from ..world import FEATURES, GROUND
 
 CONE_DEGREES = 50          # half-angle of the camera cone
 NOTABLE = set("CxkGOThswcogu")        # features worth naming individually
+
+# The judge checks a looser claim than the prompt states where the full wording failed even when every frame was
+# drawn from the true state (FLUX oracle, 20 seeds, 2026-11-03): weathered stumps were rejected as not "fresh",
+# and the shrine's compound description failed on any missing part, so its gate and plates are checked as their
+# own features. People are checked by outfit alone (see person_claim). The prompt keeps the full wording.
+FEATURE_CLAIMS = {"a fresh tree stump": "a tree stump"}
+LANDMARK_CLAIMS = {"shrine": "a stone shrine platform"}
+
+
+def person_claim(signature: str) -> str:
+    return f"a person wearing {outfit(signature)}"
 
 
 @dataclass
@@ -120,7 +132,7 @@ def view(game: Game, pid: str) -> ViewSpec:
 
 def facts_for(v: ViewSpec) -> list[Fact]:
     """Checkable claims about the frame. Kept short and visual so a judge can verify them from pixels."""
-    facts = [Fact("self", f"{v.signature} is visible in the foreground", "person"),
+    facts = [Fact("self", f"{person_claim(v.signature)} is visible in the foreground", "person"),
              Fact("ground", f"the ground is {v.ground_here}", "ground")]
     named = set()
     for s in v.seen:
@@ -128,9 +140,12 @@ def facts_for(v: ViewSpec) -> list[Fact]:
             if s.label in named or s.distance > 9:
                 continue
             named.add(s.label)
-            facts.append(Fact(f"feature:{s.label}", f"{s.label} is visible", "feature"))
+            facts.append(Fact(f"feature:{s.label}", f"{FEATURE_CLAIMS.get(s.label, s.label)} is visible", "feature"))
+        elif s.kind == "person":
+            facts.append(Fact(f"person:{s.id}", f"{person_claim(s.label)} is visible", "person"))
         else:
-            facts.append(Fact(f"{s.kind}:{s.id}", f"{s.label} is visible", s.kind))
+            claim = LANDMARK_CLAIMS.get(s.id.split(":", 1)[0], s.label)
+            facts.append(Fact(f"landmark:{s.id}", f"{claim} is visible", "landmark"))
     facts.append(Fact("time", {"dawn": "it is dawn", "day": "it is daytime", "dusk": "it is dusk",
                                "night": "it is night"}[v.time_of_day], "atmosphere"))
     return facts

@@ -36,6 +36,12 @@ def npc_signature(seed: int, npc_id: str, role: str) -> str:
     return f"{adj} {role} in {_a(color)} {garment}, {extra}"
 
 
+def outfit(signature: str) -> str:
+    """The colour and garment of a signature ("a young traveller in an ivory padded tunic, carrying ..." ->
+    "an ivory padded tunic"): the one feature of a person the judge checks."""
+    return signature.split(" in ", 1)[1].split(",", 1)[0]
+
+
 def player_signature(seed: int, player_id: str) -> str:
     h = hash64(seed, *map(ord, player_id), 99)
     color = COLORS[h % len(COLORS)]

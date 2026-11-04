@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from ..game import Game
 from ..render.prompt import compile_prompt
 from ..render.reference import render_reference
-from ..render.view import Fact, ViewSpec, view
+from ..render.view import FEATURE_CLAIMS, Fact, ViewSpec, view
 
 
 @dataclass
@@ -50,7 +50,7 @@ class ProbeStep:
 
 def stale(label: str) -> Fact:
     """A feature that must NOT be visible: the state before a change, or the one it replaced."""
-    return Fact(f"stale:feature:{label}", f"{label} is visible", "feature")
+    return Fact(f"stale:feature:{label}", f"{FEATURE_CLAIMS.get(label, label)} is visible", "feature")
 
 
 def _snap(game: Game, probe: str, steps: list[ProbeStep], pid: str, label: str, must=(), compare_to=None,

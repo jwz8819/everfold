@@ -86,7 +86,9 @@ async def rescore(out: Path, judge: Judge | None = None) -> dict:
     saved = [json.loads(line) for line in (out / "steps.jsonl").read_text(encoding="utf-8").splitlines()]
     steps = build(old["seed"], list(dict.fromkeys(s["probe"] for s in saved)))
     fresh = [json.loads(json.dumps(s.to_dict(), ensure_ascii=False)) for s in steps]
-    same_world = lambda ds: [{k: v for k, v in d.items() if k != "stale"} for d in ds]
+    # Facts and stale facts are the judge's claims about the world, not the world: when only they changed, the saved
+    # frames still show the same steps and are judged again.
+    same_world = lambda ds: [{k: v for k, v in d.items() if k not in ("facts", "stale")} for d in ds]
     if same_world(fresh) != same_world(saved):
         raise RuntimeError(f"{out}: the probes now describe a different world; this run cannot be rescored")
     verdicts: dict[str, dict[str, str]] = {}
@@ -97,7 +99,7 @@ async def rescore(out: Path, judge: Judge | None = None) -> dict:
                 verdicts[row["id"]] = row["verdicts"]
     else:
         if judge is None:
-            raise RuntimeError(f"{out}: the probes gained facts since this run; rescore with a judge to re-judge it")
+            raise RuntimeError(f"{out}: the judge's claims changed since this run; rescore with a judge to re-judge it")
         for s in steps:
             frame = next(iter(sorted((out / "frames").glob(f"{s.id}.*"))), None)
             if frame is not None:

@@ -87,6 +87,34 @@ async def test_rescore_rejudges_a_run_made_before_stale_facts(tmp_path, fake_cla
     assert "stale" in json.loads((tmp_path / "steps.jsonl").read_text().splitlines()[0])
 
 
+def test_judge_claims_are_looser_than_the_prompt_where_the_oracle_failed():
+    steps = {s.id: s for s in build(42, ["propagation", "shrine", "identity"])}
+    texts = lambda s: {f.id: f.text for f in s.claims}
+    after = steps["propagation-01"]
+    assert "fresh tree stump" in after.prompt and texts(after)["feature:a fresh tree stump"] == "a tree stump is visible"
+    assert texts(steps["propagation-00"])["stale:feature:a fresh tree stump"] == "a tree stump is visible"
+    sealed = steps["shrine-00"]
+    assert "two glowing plates" in sealed.prompt
+    assert texts(sealed)["landmark:shrine:1:0"] == "a stone shrine platform is visible"
+    ash = texts(steps["identity-00"])["person:p_bench0"]
+    assert ash.startswith("a person wearing ") and "carrying" not in ash
+
+
+async def test_rescore_rejudges_when_only_the_claims_changed(tmp_path, fake_claude):
+    def all_present(kw):
+        n = kw["messages"][0]["content"][1]["text"].count("\n") + 1
+        return {"verdicts": [{"n": i + 1, "verdict": "present", "why": ""} for i in range(n)]}
+
+    await run(42, A.ReferenceAdapter(), tmp_path, Judge(fake_claude(*[all_present] * 3)), ["propagation"])
+    rows = [json.loads(l) for l in (tmp_path / "steps.jsonl").read_text().splitlines()]
+    for r in rows:      # an older run judged the full wording
+        r["facts"] = [f | {"text": f["text"].replace("a tree stump", "a fresh tree stump")} for f in r["facts"]]
+    (tmp_path / "steps.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    j = Judge(fake_claude(*[all_present] * 3))
+    m = await rescore(tmp_path, j)
+    assert len(j.client.calls) == 3 and m["judge"]["rejudged"]
+
+
 def test_state_change_needs_both_sides_so_a_frozen_after_picture_fails():
     steps = build(42, ["shrine"])
     good = all_verdicts(steps, "present")
