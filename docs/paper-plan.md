@@ -206,6 +206,18 @@ generators, multiplayer-native models) on the same multiplayer properties agains
     - Eden drive: same spot on 2 of 3 seeds. Its one valid pair kept the tower (n=1, inconclusive).
     - All pairs were re-judged with the new question. Re-asking moved some calls: LingBot-2p same tower went
       from 0/20 to 2/20 and the oracle from 2/20 to 3/19. That is judge noise within the intervals; report it.
+- Eden is game-bound (calibration 2026-11-04, scripts/eden_calibrate.py, docs/eden-games.jpg, $0.64).
+  - Eden Live 14B Game always runs one of 12 built-in games (/info lists them). Our image and prompt only
+    replace the opening frame; the game's own rules run underneath.
+  - Default game "freeze" (a lava crossing): the first forward command drops the game's props (a frozen
+    block, a rock ledge) into our scene, then the camera stops responding. Turn and forward change the view
+    by almost nothing (frame correlation 0.98-0.99). This explains the same-spot cross-view frames.
+  - Game "drone" (free flight in a forest): the camera moves on every command (correlation -0.19 to 0.42),
+    but within 4 s the scene becomes the game's own forest. The tower, river and avatar are gone, and a drone
+    appears.
+  - So neither game can carry the probes. Eden belongs in the taxonomy as a game-locked model: a text or
+    image start conditions only the first frames, and the game decides what persists. Report seeds 42, 1, 2
+    and this calibration qualitatively. Don't buy more Eden seeds.
 - Drive-speed sensitivity (tag sens1, cut short when fal credit ran out): ABot drive with tile and turn
   seconds x0.5 and x1.5, 2 seeds each so far (42, 1). Every probe is 0% at both scales except one x0.5
   cross-view presence (no same tower), the same as the base speed on those seeds. Needs 3 more seeds per

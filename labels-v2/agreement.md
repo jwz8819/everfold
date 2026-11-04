@@ -1,4 +1,4 @@
-# Judge vs human agreement
+# Agreement: human1 vs judge
 
 50 frames, 319 claims. Agreement 0.79, Cohen's kappa 0.60 over present/absent/unclear, 0.66 on present vs not (the distinction the scores use).
 
@@ -40,10 +40,10 @@ Rough reading of kappa: above 0.8 strong, 0.6-0.8 substantial, 0.4-0.6 moderate,
 
 ## Confusion
 
-- human absent / judge absent: 102
-- human absent / judge present: 24
-- human absent / judge unclear: 13
-- human present / judge absent: 19
-- human present / judge present: 150
-- human present / judge unclear: 8
-- human unclear / judge present: 3
+- human1 absent / judge absent: 102
+- human1 absent / judge present: 24
+- human1 absent / judge unclear: 13
+- human1 present / judge absent: 19
+- human1 present / judge present: 150
+- human1 present / judge unclear: 8
+- human1 unclear / judge present: 3
