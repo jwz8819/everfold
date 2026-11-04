@@ -40,20 +40,40 @@ def judged_runs(runs: Path) -> list[Path]:
                   and (d / "verdicts.jsonl").exists() and (d / "steps.jsonl").exists())
 
 
-def draw_sample(runs: Path, n: int = 100, seed: int = 0) -> list[dict]:
-    """Up to n judged frames, spread evenly across runs, in a shuffled order so no run is labelled in one block."""
+def draw_sample(runs: Path, n: int = 100, seed: int = 0, exclude: list[dict] = (), focus: tuple[str, ...] = ()) -> list[dict]:
+    """Up to n judged frames, spread evenly across runs, in a shuffled order so no run is labelled in one block.
+
+    `exclude` lists frames labelled before (an older sample), which are never drawn again. When `focus` names step
+    ids, half the sample is drawn from those steps first, so a change to a few claims gets enough labels."""
     rng = random.Random(seed)
+    seen = {(e["run"], e["id"]) for e in exclude}
     pools = []
+    # Interleave conditions (first seed of each, then the second, ...) so a sample smaller than the number of runs
+    # still covers every condition rather than the alphabetically first ones.
+    rank: dict[str, int] = defaultdict(int)
+    order = []
     for run in judged_runs(runs):
+        condition = run.name.rsplit("-seed", 1)[0]
+        order.append((rank[condition], condition, run))
+        rank[condition] += 1
+    for *_, run in sorted(order, key=lambda t: t[:2]):
         verdicts = _verdicts(run)
-        ids = [sid for sid in _steps(run) if sid in verdicts and _frame(run, sid)]
+        ids = [sid for sid in _steps(run) if sid in verdicts and _frame(run, sid) and (run.name, sid) not in seen]
         rng.shuffle(ids)
         pools.append([{"run": run.name, "id": sid} for sid in ids])
     picked: list[dict] = []
-    while len(picked) < n and any(pools):
-        for pool in pools:
-            if pool and len(picked) < n:
-                picked.append(pool.pop())
+
+    def take(pools, limit):
+        while len(picked) < limit and any(pools):
+            for pool in pools:
+                if pool and len(picked) < limit:
+                    picked.append(pool.pop())
+
+    if focus:
+        take([[f for f in pool if f["id"] in focus] for pool in pools], n // 2)
+        chosen = {(f["run"], f["id"]) for f in picked}
+        pools = [[f for f in pool if (f["run"], f["id"]) not in chosen] for pool in pools]
+    take(pools, n)
     rng.shuffle(picked)
     return picked
 
@@ -140,12 +160,13 @@ def agreement_report(a: dict) -> str:
 # labelling page ----------------------------------------------------------------------------------------------------
 
 class LabelApp:
-    def __init__(self, runs: Path, labels_dir: Path, labeler: str, n: int = 100):
+    def __init__(self, runs: Path, labels_dir: Path, labeler: str, n: int = 100, exclude: list[dict] = (),
+                 focus: tuple[str, ...] = ()):
         self.runs, self.dir, self.labeler = runs, labels_dir, labeler
         self.dir.mkdir(parents=True, exist_ok=True)
         sample_file = self.dir / "sample.json"
         if not sample_file.exists():
-            sample = draw_sample(runs, n)
+            sample = draw_sample(runs, n, exclude=exclude, focus=focus)
             if not sample:
                 raise RuntimeError(f"no judged runs under {runs}")
             sample_file.write_text(json.dumps(sample, indent=1), encoding="utf-8")

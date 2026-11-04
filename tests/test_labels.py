@@ -36,6 +36,15 @@ async def test_sample_spreads_across_runs_and_skips_the_reference(runs):
     assert draw_sample(runs, n=6) == s, "the sample must be reproducible"
 
 
+async def test_a_later_round_skips_labelled_frames_and_fills_half_with_focus_steps(runs):
+    first = draw_sample(runs, n=2)              # two runs x five frames, two shrine frames each
+    later = draw_sample(runs, n=4, exclude=first, focus=("shrine-00", "shrine-01"))
+    assert len(later) == 4
+    assert not {(f["run"], f["id"]) for f in later} & {(f["run"], f["id"]) for f in first}
+    shrine_left = 4 - sum(f["id"].startswith("shrine") for f in first)
+    assert sum(f["id"].startswith("shrine") for f in later) >= min(2, shrine_left)
+
+
 async def test_label_page_is_blind_validates_and_resumes(runs, tmp_path, aiohttp_client):
     app = LabelApp(runs, tmp_path / "labels", "tester", n=4)
     client = await aiohttp_client(app.app())

@@ -161,8 +161,11 @@ def cmd_label(args) -> None:
 
     from .bench.labels import LabelApp
 
+    exclude = []
+    for f in args.exclude or []:
+        exclude += json.loads(Path(f).read_text(encoding="utf-8"))
     try:
-        app = LabelApp(Path(args.runs), Path(args.labels), args.labeler, args.n)
+        app = LabelApp(Path(args.runs), Path(args.labels), args.labeler, args.n, exclude, tuple(args.focus or ()))
     except (OSError, RuntimeError) as e:
         sys.exit(str(e))
     print(f"Labelling {len(app.sample)} frames. Open http://127.0.0.1:{args.port} in your browser.")
@@ -235,6 +238,8 @@ def main(argv: list[str] | None = None) -> None:
     lb.add_argument("--labels", default="labels")
     lb.add_argument("--labeler", default="human1", help="a name for whoever is labelling (no real names needed)")
     lb.add_argument("--n", type=int, default=100, help="frames to sample the first time")
+    lb.add_argument("--exclude", nargs="*", help="sample.json files of earlier rounds: their frames are not drawn again")
+    lb.add_argument("--focus", nargs="*", help="step ids (e.g. shrine-00) that fill half the sample")
     lb.add_argument("--port", type=int, default=8770)
     lb.set_defaults(fn=cmd_label)
 
