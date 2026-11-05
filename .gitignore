@@ -7,3 +7,7 @@ data/
 .pytest_cache/
 uv.lock
 node_modules/
+paper/arxiv/
+paper/*.aux
+paper/*.log
+paper/*.out
