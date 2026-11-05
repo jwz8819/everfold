@@ -5,7 +5,7 @@ generative world models. The game server holds every fact. World models only dra
 and the benchmark grades their frames against the server's truth.
 
 **Paper:** *Everfold: Do Generative World Models Give Two Players the Same World?*, Wanzhen Jiang, 2026
-([PDF](paper/everfold.pdf); arXiv link to come). **Frames, judge verdicts and human labels:** on Hugging Face (link to come).
+([PDF](paper/everfold.pdf); arXiv link to come). **Frames, judge verdicts and human labels:** [huggingface.co/datasets/jwz8819/everfold-bench](https://huggingface.co/datasets/jwz8819/everfold-bench).
 
 ![One tower, two players, five renderers](paper/fig1-cross-view.jpg)
 
@@ -138,7 +138,7 @@ Cohen's kappa against the judge or another labeller.
 
 ## Licence and citation
 
-Code: MIT (see `LICENSE`). Frames and labels on Hugging Face: CC BY 4.0.
+Code: MIT (see `LICENSE`). Frames and labels on [Hugging Face](https://huggingface.co/datasets/jwz8819/everfold-bench): CC BY 4.0.
 
 ```bibtex
 @misc{jiang2026everfold,
