@@ -61,7 +61,7 @@ async def test_adapter_restyles_one_clip_per_family_and_samples_steps(aiohttp_se
     async def submit(request):
         body = await request.json()
         seen.append(body)
-        assert body["video_url"].startswith("data:video/mp4;base64,") and not body["enhance_prompt"]
+        assert body["video_url"].startswith("data:video/mp4;base64,") and not body["enhance_prompt"]   # no upload in tests
         n = len(seen)
         base = str(request.url.with_path(""))
         return web.json_response({"request_id": str(n), "status_url": f"{base}/status/{n}",
@@ -85,7 +85,7 @@ async def test_adapter_restyles_one_clip_per_family_and_samples_steps(aiohttp_se
     app.router.add_get("/video/{n}", video)
     server = await aiohttp_server(app)
     steps = build(42, ["cross_view", "shrine"])
-    a = LucyAdapter(api_key="k", queue_url=str(server.make_url("")), poll_s=0.01)
+    a = LucyAdapter(api_key="k", queue_url=str(server.make_url("")), upload_url=None, poll_s=0.01)
     await a.prepare(steps)
     frames = [await a.frame(s) for s in steps]
     await a.aclose()
@@ -102,3 +102,11 @@ def test_conditions():
 
 def test_greybox_reports_zero_cost_for_the_sweep_ledger():
     assert GreyboxAdapter().stats()["est_cost_usd"] == 0.0
+
+
+def test_prompts_stay_under_lucys_limit():
+    from everfold.bench.lucy_adapter import MAX_PROMPT_CHARS
+
+    for seed in (10, 4, 18):
+        for probe in ("revisit", "identity"):
+            assert len(prompt_for([s for s in build(seed) if s.probe == probe])) <= MAX_PROMPT_CHARS

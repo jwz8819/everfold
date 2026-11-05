@@ -22,19 +22,19 @@ import json
 import logging
 import math
 import time
-from fractions import Fraction
 
 from aiohttp import ClientSession, ClientTimeout
 
 from .. import config as C
 from ..render.greybox import FACING_HEADING, H, W, outfit_color, render
 from ..render.view import LANDMARK_CLAIMS
-from .probes import ProbeStep
+from .probes import ProbeStep, build
 
 log = logging.getLogger("everfold.lucy")
 
 APP = "decart/lucy-restyle"
 QUEUE_URL = "https://queue.fal.run"
+UPLOAD_URL = "https://rest.alpha.fal.ai/storage/upload/initiate?storage_type=fal-cdn-v3"
 PRICE_PER_S = 0.01          # fal page, 2026-11-04
 FPS = 16
 LEAD_S, HOLD_S = 1.5, 1.5   # still camera before the first step, and at every step
@@ -100,26 +100,38 @@ def decode(video: bytes) -> list[tuple[float, object]]:
     return out
 
 
+# Lucy on fal fails fast (inference ~2 s, then HTTP 500 on the result) when the prompt is over ~900 characters: all
+# 11 failed clips of the first sweep had prompts of 907+ characters, all 29 that worked had 895 or fewer, and the
+# same clip went through once the prompt was shortened (2026-11-04). Undocumented; this cap stays under it.
+MAX_PROMPT_CHARS = 895
+
+
 def prompt_for(steps: list[ProbeStep]) -> str:
-    """Art direction plus the people and landmarks of the clip: things true throughout, never a state change."""
-    seen, things = set(), []
+    """Art direction plus the people and landmarks of the clip, in the order first seen: things true throughout,
+    never a state change. If that is over MAX_PROMPT_CHARS, people are dropped from the end until it fits."""
+    things: list[tuple[str, str]] = []
     for s in steps:
         for x in s.view.seen:
             # a landmark whose description carries its state (the shrine's gate) gets its stateless claim instead
             label = LANDMARK_CLAIMS.get(x.id.split(":", 1)[0], x.label) if x.kind == "landmark" else x.label
-            if x.kind in ("person", "landmark") and label not in seen:
-                seen.add(label)
-                things.append(label)
-    people = sorted({s.view.signature for s in steps})
-    return (f"Restyle this blocky game render into a {C.STYLE_ANCHOR}. The player character is "
-            f"{' / '.join(people)}, seen from behind. In the world: {'; '.join(things) or 'open countryside'}. "
-            "Keep every building, tree, rock, person and object exactly where it is and keep the camera motion; "
-            "turn the simple shapes into detailed versions of what they are.")[:2000]
+            if x.kind in ("person", "landmark") and (x.kind, label) not in things:
+                things.append((x.kind, label))
+    players = " / ".join(sorted({s.view.signature for s in steps}))
+
+    def text() -> str:
+        return (f"Restyle this blocky game render into a {C.STYLE_ANCHOR}. The player character is {players}, "
+                f"seen from behind. In the world: {'; '.join(t for _, t in things) or 'open countryside'}. "
+                "Keep every building, tree, rock, person and object exactly where it is and keep the camera motion; "
+                "turn the simple shapes into detailed versions of what they are.")
+
+    while len(text()) > MAX_PROMPT_CHARS and any(k == "person" for k, _ in things):
+        del things[max(i for i, (k, _) in enumerate(things) if k == "person")]
+    return text()[:MAX_PROMPT_CHARS]
 
 
 class LucyAdapter:
     def __init__(self, api_key: str | None = None, per_player: bool = False, queue_url: str = QUEUE_URL,
-                 poll_s: float = 3.0, timeout_s: float = 900.0):
+                 upload_url: str | None = UPLOAD_URL, poll_s: float = 3.0, timeout_s: float = 900.0):
         from .. import falproxy
 
         self.key = api_key or falproxy.fal_key()
@@ -128,6 +140,7 @@ class LucyAdapter:
         self.per_player = per_player
         self.name = "lucy-greybox" + ("-2p" if per_player else "")
         self.queue_url, self.poll_s, self.timeout_s = queue_url.rstrip("/"), poll_s, timeout_s
+        self.upload_url = upload_url
         self.http: ClientSession | None = None
         self.frames: dict[str, bytes] = {}
         self.cost = 0.0
@@ -148,10 +161,20 @@ class LucyAdapter:
                 raise RuntimeError(f"{url} -> HTTP {r.status}: {text[:300]}")
             return json.loads(text)
 
+    async def upload(self, video: bytes) -> str:
+        """Put the clip on fal's file storage. Clips sent inline as data URIs failed on fal's side for about half
+        of the ~1 MB revisit clips (HTTP 500), and again on retry; uploaded ones go through."""
+        if self.upload_url is None:
+            return "data:video/mp4;base64," + base64.b64encode(video).decode()
+        d = await self._json("POST", self.upload_url, {"content_type": "video/mp4", "file_name": "clip.mp4"})
+        async with self.http.put(d["upload_url"], data=video, headers={"content-type": "video/mp4"},
+                                 timeout=ClientTimeout(total=120)) as r:
+            r.raise_for_status()
+        return d["file_url"]
+
     async def restyle(self, video: bytes, prompt: str, seed: int) -> bytes:
-        """Submit to fal's queue, wait, download the restyled clip."""
-        body = {"prompt": prompt, "video_url": "data:video/mp4;base64," + base64.b64encode(video).decode(),
-                "enhance_prompt": False, "seed": seed}
+        """Upload the clip, submit to fal's queue, wait, download the restyled clip."""
+        body = {"prompt": prompt, "video_url": await self.upload(video), "enhance_prompt": False, "seed": seed}
         job = await self._json("POST", f"{self.queue_url}/{APP}", body)
         t0 = time.monotonic()
         while True:
@@ -214,3 +237,43 @@ class LucyAdapter:
                 "clip_seconds": round(self.clip_seconds, 1), "est_cost_usd": round(self.cost, 4),
                 "mean_wait_seconds": round(sum(self.wait_s) / len(self.wait_s), 1) if self.wait_s else None,
                 "errors": self.errors[:10]}
+
+
+async def repair(out, judge, per_player: bool = False) -> dict:
+    """Redo the clips of a finished Lucy run that failed on fal's side, judge only their new frames, and rescore.
+
+    A failed clip leaves its steps without frames; retrying it later costs only that clip. Clips that fail again
+    stay missing and are recorded in the run's renderer errors."""
+    from pathlib import Path
+
+    from .run import _ext, rescore
+
+    out = Path(out)
+    m = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+    steps = build(m["seed"])
+    missing = [s for s in steps if not any((out / "frames").glob(f"{s.id}.*"))]
+    if not missing:
+        return {"run": out.name, "redone": 0}
+    a = LucyAdapter(per_player=per_player)
+    a.http = ClientSession()
+    groups: dict[tuple, list[ProbeStep]] = {}
+    for s in steps:
+        groups.setdefault((s.probe, s.player) if per_player else (s.probe,), []).append(s)
+    todo = [g for g in groups.values() if any(s in missing for s in g)]
+    await asyncio.gather(*(a._clip(g, seed=100 + i) for i, g in enumerate(todo)))
+    await a.aclose()
+    rows = [json.loads(line) for line in (out / "verdicts.jsonl").read_text(encoding="utf-8").splitlines()]
+    for s in missing:
+        img = a.frames.get(s.id)
+        if img is None:
+            continue
+        (out / "frames" / f"{s.id}.{_ext(img)}").write_bytes(img)
+        rows.append({"id": s.id, "verdicts": await judge.check(s, img)})
+    (out / "verdicts.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    r = m["renderer"]
+    r["errors"] = [e for e in r.get("errors", []) if e.split(":")[0] not in {s.id for s in missing}] + a.errors
+    r["repair_clips"], r["repair_cost_usd"] = a.clips, round(a.cost, 4)
+    r["est_cost_usd"] = round(r["est_cost_usd"] + a.cost, 4)
+    (out / "metrics.json").write_text(json.dumps(m, indent=2), encoding="utf-8")
+    await rescore(out, judge)
+    return {"run": out.name, "redone": a.clips, "still_failed": len(a.errors), "usd": round(a.cost, 3)}
