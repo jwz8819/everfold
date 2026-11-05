@@ -233,6 +233,39 @@ generators, multiplayer-native models) on the same multiplayer properties agains
     cross-view, revisit and identity, consistent with less time to drift. That is worth one sentence, not a
     claim.
   - One x0.5 run failed to connect (WebRTC timeout) and was rerun.
+- Engine renders, model restyles (2026-11-04). This is the second integration pattern.
+  - Greybox: the engine's own 3D render of the true state (render/greybox.py). High chase camera over the
+    shoulder, with tall occluders faded in the line of sight, as games do. Free.
+  - Lucy: Decart Lucy Restyle on fal (`decart/lucy-restyle`, $0.01/s) restyles one greybox clip per probe
+    family (hold at each pose, walk between them). One clip per player for the 2p variant.
+  - Prompt: art direction plus the people and landmarks true for the whole clip, never a state change.
+  - 20 seeds each:
+
+    | Condition | Cross-view | Same tower | Revisit | Propagation | Identity | Shrine |
+    |---|---|---|---|---|---|---|
+    | Greybox (engine render) | 100% | 100% | 99% [97, 100] | 0% | 70% [57, 83] | 20% [5, 40] |
+    | Lucy, one clip | 40% [20, 60] | 10% [0, 25] | 0% (n=6) | 0% | 10% [3, 18] | 0% |
+    | Lucy, clip per player | 80% [60, 95] | 35% [15, 55] | n/a | n/a | n/a | n/a |
+
+  - Greybox: perfect cross-view consistency, by construction from one shared state, the only renderer with it.
+    Its propagation is 0% because the player who fells the tree stands between the watcher and the stump: the
+    probes' text truth has no occlusion, a true 3D camera does. Its shrine is 20% because a small glowing box
+    rarely reads as a "floating spirit orb". It is the ceiling for consistency, not for legibility.
+  - Lucy keeps the layout, but recolours freely (purple trees), invents effects (fire, glows), and drifts
+    over a clip (the 19 s revisit clip ends in a purple sky). Revisit is scorable on only 6 of 20 seeds,
+    because its first frame showed nothing the judge recognised.
+  - Restyling one shared geometry per player (35% same tower) beats per-player world-model sessions (5-10%)
+    but falls far short of the engine's own render (100%). The restyler's freedom costs most of the
+    consistency the engine provides.
+  - Cost: $0.49 per seed (49 s of clip) for one clip; $0.06 per seed for 2p.
+  - fal quirks found: Lucy fails fast (HTTP 500 on the result) when the prompt is over ~900 characters.
+    11 of 40 runs hit it; those clips were redone with a 895-character cap (whole villager descriptions
+    dropped from the end), and every prompt that had worked is byte-identical under the cap. Clips are now
+    uploaded to fal storage rather than sent inline. Lucy returns the clip at half speed (2x duration);
+    frames are sampled on the stretched timeline.
+  - The "same spot" viewpoint rule applies only to models that move their own camera. For greybox and Lucy
+    the engine places the camera, and Lucy's repainting made the pair judge call 10 of 20 one-clip pairs the
+    same spot; those are scored rather than hidden as n/a.
 - Run every probe on at least 20 seeds and report spread, not one run.
 - Record cost and wall-clock per probe family per model.
 - Keep the judge blind to the prompt (it already is) and fixed across models.

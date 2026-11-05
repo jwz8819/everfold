@@ -94,3 +94,11 @@ def test_a_second_view_from_the_same_spot_leaves_cross_view_unscored():
     m = {"cross_view_agreement": 1.0}
     apply_pair({"a": "present", "b": "present", "same": "same", "viewpoint": "different"}, m)
     assert m["cross_view_agreement"] == 1.0 and m["cross_view_consistency"] == 1.0
+
+
+def test_engine_placed_cameras_are_scored_even_when_the_judge_calls_it_one_spot():
+    from everfold.bench.run import apply_pair
+
+    m = {"cross_view_agreement": 1.0, "adapter": "lucy-greybox"}
+    apply_pair({"a": "present", "b": "present", "same": "different", "viewpoint": "same"}, m)
+    assert m["cross_view_agreement"] == 1.0 and m["cross_view_consistency"] == 0.0

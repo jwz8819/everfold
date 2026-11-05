@@ -43,12 +43,20 @@ async def judge_pair(steps: list[ProbeStep], out: Path, judge: Judge) -> dict | 
     return pair
 
 
+# Renderers whose camera the engine places (it renders the geometry the model restyles, or is the picture itself):
+# their two cross-view frames come from different spots by construction, so the "same spot" rule does not apply.
+# A restyler can repaint the surroundings until the pair judge cannot tell the views apart, which is a failure of
+# consistency to score, not a camera that never moved.
+ENGINE_CAMERA = {"greybox", "lucy-greybox", "lucy-greybox-2p"}
+
+
 def apply_pair(pair: dict | None, metrics: dict) -> None:
     """Add cross-view consistency to the metrics. A second view the pair judge calls the same viewpoint (same
     background, the landmark at the same angle, things merely added in front) means the camera never really
     moved, so cross-view is not scored at all, exactly as for a frozen camera. Pixel similarity misses this: a
     model that drops props in the foreground changes the frame without moving the camera."""
-    if pair is not None and pair.get("viewpoint") == "same":
+    moved_by_engine = metrics.get("adapter") in ENGINE_CAMERA
+    if pair is not None and pair.get("viewpoint") == "same" and not moved_by_engine:
         metrics["cross_view_agreement"] = None
     metrics["cross_view_same_viewpoint"] = None if pair is None else pair.get("viewpoint") == "same"
     metrics["cross_view_consistency"] = consistency(pair, metrics)
@@ -104,9 +112,9 @@ async def run(seed: int, adapter: Adapter, out: Path, judge: Judge | None, probe
         for sid, v in verdicts.items():
             f.write(json.dumps({"id": sid, "verdicts": v}) + "\n")
     metrics = score(steps, verdicts, static_steps(steps, out / "frames"))
+    metrics["adapter"] = adapter.name
     pair = await judge_pair(steps, out, judge) if judge is not None else None
     apply_pair(pair, metrics)
-    metrics["adapter"] = adapter.name
     metrics["seed"] = seed
     metrics["frames"] = sum(1 for s in steps if any((out / "frames").glob(f"{s.id}.*")))
     metrics["mean_frame_seconds"] = round(sum(latency.values()) / max(len(latency), 1), 3)
