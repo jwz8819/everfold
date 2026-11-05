@@ -4,7 +4,21 @@ A real-time multiplayer open world that writes itself as players walk, built as 
 generative world models. The game server holds every fact. World models only draw what a player's camera sees,
 and the benchmark grades their frames against the server's truth.
 
-The research plan is in [docs/paper-plan.md](docs/paper-plan.md).
+**Paper:** *Everfold: Do Generative World Models Give Two Players the Same World?*, Wanzhen Jiang, 2026
+([PDF](paper/everfold.pdf); arXiv link to come). **Frames, judge verdicts and human labels:** on Hugging Face (link to come).
+
+![One tower, two players, five renderers](paper/fig1-cross-view.jpg)
+
+Two players look at the same watchtower. Only the engine's own render gives them the same tower; every
+per-player model draws its own.
+
+| Condition (20 seeds) | Both see the tower | Same tower | State change seen by the other player |
+|---|---|---|---|
+| ABot / LingBot, one session per player | 75–80% | 5–10% | 0–2% (driven, one session) |
+| Lucy restyling the engine render, per player | 80% | 35% | 0% |
+| Engine greybox | 100% | 100% | see the paper (occlusion) |
+
+The research log is in [docs/paper-plan.md](docs/paper-plan.md).
 
 ## Play
 
@@ -57,6 +71,9 @@ chests and flowers regrow. Everything players change is saved to SQLite and surv
 | `folder --frames DIR` | judges frames you captured by hand, named `<step id>.png` |
 | `odyssey` | Odyssey-2 Pro through its Python SDK; needs `ODYSSEY_API_KEY` and `uv pip install -e ".[odyssey]"` |
 | `abot`, `lingbot`, `eden` | ABot-World-0, LingBot-World-2, Eden Live 14B Game on fal, headless over WebRTC; need `FAL_KEY` and `uv pip install -e ".[fal]"` |
+| `greybox` | the engine's own 3D render of the true state; free |
+| `flux-oracle` | FLUX.1 schnell on fal draws each frame from the true-state prompt; the stateless ceiling; needs `FAL_KEY` |
+| `lucy [--per-player]` | Decart Lucy Restyle on fal restyles a greybox clip per probe family (or per player); needs `FAL_KEY` |
 
 The five probes are cross-view agreement, revisit retention, cross-player state propagation, identity
 persistence, and shared-structure state change. A Claude vision judge marks each ground-truth fact present,
@@ -97,8 +114,37 @@ To watch Odyssey live in the game, set `ODYSSEY_API_KEY` before `serve`, install
 | `everfold/server.py` | WebSocket server and static client |
 | `client/` | browser client and live renderer plug-ins |
 
+## Reproduce the paper
+
+Each condition runs on the same seeds (42, then 1, 2, 3, ...) under a spending cap, and the aggregate reports each
+probe as a mean over seeds with a 95% bootstrap interval:
+
+```bash
+.venv/bin/python -m everfold.cli sweep greybox:20 lucy-greybox-2p:20 abot-image-2p:20 --budget 10 --tag repro
+```
+
+```bash
+.venv/bin/python -m everfold.cli aggregate
+```
+
+Human agreement: `everfold label` opens a labelling page on a frame sample, and `everfold agreement` reports
+Cohen's kappa against the judge or another labeller.
+
 ## Tests
 
 ```bash
 .venv/bin/python -m pytest -q
+```
+
+## Licence and citation
+
+Code: MIT (see `LICENSE`). Frames and labels on Hugging Face: CC BY 4.0.
+
+```bibtex
+@misc{jiang2026everfold,
+  title  = {Everfold: Do Generative World Models Give Two Players the Same World?},
+  author = {Jiang, Wanzhen},
+  year   = {2026},
+  note   = {arXiv preprint, to appear}
+}
 ```
