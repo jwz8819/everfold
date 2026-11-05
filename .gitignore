@@ -6,3 +6,4 @@ data/
 .env
 .pytest_cache/
 uv.lock
+node_modules/
